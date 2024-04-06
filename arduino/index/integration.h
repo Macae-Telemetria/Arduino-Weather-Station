@@ -6,7 +6,7 @@
 #include <WiFi.h> // #include <WiFiClientSecure.h>
 #include <NTPClient.h>
 #include <PubSubClient.h>
-
+#include <HTTPClient.h>
 /**** WIFI Client Initialisation *****/
 WiFiClient wifiClient;
 
@@ -97,3 +97,46 @@ int connectNtp(const char *contextName)
   Serial.printf("%s: Conectado com sucesso. \n", contextName);
   return 1;
 }
+
+
+int sendFilehttp(const String& fileName,const String& inputData, const String& url)
+{
+  Serial.println(url);
+  HTTPClient http;
+  //http.setInsecure();
+  http.begin(wifiClient,url);
+
+  // form data
+  String boundary = "----ArduinoBoundary";
+  String data = "";
+
+  // Add file1 to the request
+  data += "--" + boundary + "\r\n";
+  data += "Content-Disposition: form-data; name=\"files\"; filename=\""+fileName+"\"\r\n";
+  data += "Content-Type: text/csv\r\n\r\n";
+
+  data += inputData;
+
+  // End of request
+  data += "\r\n--" + boundary + "--\r\n";
+  http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary); 
+
+  int httpResponseCode = http.POST(data);
+
+  //int httpResponseCode = http.GET();
+
+  if (httpResponseCode > 0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    Serial.println("File uploaded successfully.");
+  } else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+  }
+  // Close connection
+  http.end();
+
+  return httpResponseCode;
+
+}
+

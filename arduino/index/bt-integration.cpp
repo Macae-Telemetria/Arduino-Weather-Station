@@ -84,7 +84,7 @@ void BLE::Init(const char *boardName, int (*callback)(const char *uid, const std
 
 void BLE::updateValue(const char *characteristicId, const std::string &newValue){
     if (newValue.length() == 0) return;
-    std::cout << "\n  - Emitindo valores via Bluetooth (" << newValue << ") \n";
+    std::cout << "\n  - EvaloresviaBt (" << newValue << ") \n";
     if(characteristicId == HEALTH_CHECK_UUID){
         pHealthCharacteristic->setValue(newValue);
         pHealthCharacteristic->notify();
@@ -92,7 +92,7 @@ void BLE::updateValue(const char *characteristicId, const std::string &newValue)
         pConfigCharacteristic->setValue(newValue);
         pConfigCharacteristic->notify();
     } else {
-        std::cout << "Characteristica não encontrada.\n";
+        std::cout << "Cnf.\n";
         std::cout << newValue;
     }
 }
