@@ -77,6 +77,7 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           strlcpy(config.mqtt_topic, doc["MQTT_TOPIC"] | "", sizeof(config.mqtt_topic));
           config.mqtt_port = doc["MQTT_PORT"] | 1883;
           config.interval = doc["INTERVAL"] | 60000;
+          config.bckpTime = doc["BK_TIME"] | 0;
           file.close();
           success = true;
           serializeJson(doc, configJson);
@@ -175,6 +176,19 @@ void storeLog(const char *payload){
   file.close();
 } 
 
+int sendFilehttp(const String& fileName,const String& inputData, const String& url);
+String insertStringBeforeExtension(const String& originalFilename, const String& insertString) {
+  int dotPosition = originalFilename.lastIndexOf('.');
+  
+  if (dotPosition != -1) {
+    String filename = originalFilename.substring(0, dotPosition);
+    String extension = originalFilename.substring(dotPosition);
+    return filename + insertString + extension;
+  } else {
+    // If no dot is found, return an empty string to indicate an error
+    return "";
+  }
+}
 //----------------------------------------------//
 namespace BK
 {
@@ -211,6 +225,15 @@ void listAndPrintFiles(const char* dirName) {
   }
 }
 
+    void deleteFile(const String& fileName)
+  {
+     if (SD.remove(dirNome+String("/")+fileName)) {
+    Serial.print("File ");
+    Serial.print(fileName);
+    Serial.println(" deleted successfully.");
+    }
+  }
+
 bool openDir(const char* dirName)
   {
     dir = SD.open(dirName);
@@ -222,17 +245,34 @@ bool openDir(const char* dirName)
     return 1;
   }
 
-  bool next(String & fileContent, String& fileName)
+  bool next(String& fileContent, String& fileName)
   {
     entry = dir.openNextFile();
     if (!entry) {
       return 0;
     }
+    fileName = entry.name();
+    int count =0;
+    int partitions=0;
+    int resultado=0;
     while (entry.available())
     {
-        fileContent += (char)entry.read();
+      char c = (char)entry.read();
+        fileContent += c;
+        count++;
+        if(count >=1000 && (c=='\n'))
+        {
+          resultado = sendFilehttp(insertStringBeforeExtension(fileName,String("_part")+String(partitions)),fileContent, "http://146.190.171.0:3001/iotgateway/bulk-upload/test3");
+          partitions++;
+          count =0;
+          fileContent = "";
+        }
     }
-    fileName = entry.name();
+    
+    if (resultado ==201 || resultado ==200) {
+      deleteFile(fileName);
+    }
+    
       return 1;
   }
 
@@ -241,14 +281,7 @@ bool openDir(const char* dirName)
         entry.close();
   }
 
-    void deleteFile(const String& fileName)
-  {
-     if (SD.remove(dirNome+String("/")+fileName)) {
-    Serial.print("File ");
-    Serial.print(fileName);
-    Serial.println(" deleted successfully.");
-    }
-  }
+
 
 
 }

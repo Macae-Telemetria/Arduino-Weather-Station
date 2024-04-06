@@ -105,7 +105,7 @@ int sendFilehttp(const String& fileName,const String& inputData, const String& u
   HTTPClient http;
   //http.setInsecure();
   http.begin(wifiClient,url);
-
+  Serial.print("FileName: ");Serial.println(fileName);
   // form data
   String boundary = "----ArduinoBoundary";
   String data = "";

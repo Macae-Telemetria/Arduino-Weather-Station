@@ -1,7 +1,7 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
 // Versão: 1.7.0 Wind-gust is now 3 second average;
-
+#
 //.........................................................................................................................
 
 #include "constants.h"
@@ -14,10 +14,10 @@
 #include "bt-integration.h"
 #include <string>
 #include <rtc_wdt.h>
-#include "OTA.h"
+//#include "OTA.h"
 // -- WATCH-DOG
 #define WDT_TIMEOUT 150000   
-#define SEND_BACKUP_TIME 0
+#define SEND_BACKUP_TIME 4 // 03:00 UTC
 // Pluviometro
 extern unsigned long lastPVLImpulseTime;
 extern unsigned int rainCounter;
@@ -142,33 +142,18 @@ void loop() {
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
 
-  unsigned long long hourNow = (timestamp / 3600) % 24;
-  
-  if(hourNow==SEND_BACKUP_TIME)
-  {
+  int hourNow = (timestamp / 3600) % 24;
+  if(hourNow==config.bckpTime){
     if(!doneSendingBackup){
-      doneSendingBackup = true;
-     if(BK::openDir("/metricas"))
-    {
-      Serial.println("Got here: opend");
-      String stringu;
-      String fileNamo;
-      while(BK::next(stringu,fileNamo))
-      {
-        Serial.println("nesxting");
-        int resultado = sendFilehttp(fileNamo,stringu,"http://192.168.0.173:3001/bulk-upload/estacion");
-        if (resultado ==201)
-          BK::deleteFile(fileNamo);
-        stringu = "";
-        fileNamo= "";
+      if(BK::openDir("/metricas")){
+        String filePartition,filePartitionName;
+        while(BK::next(filePartition,filePartitionName));
+        BK::close();
+        doneSendingBackup = true;
       }
-      BK::close();
-    }
-    }
   }
   else doneSendingBackup = false;
 
-  //else doneSendingBackup = false;
   convertTimeToLocaleDate(timestamp);
 
   rainCounter = 0;
@@ -179,6 +164,16 @@ void loop() {
   
 
   do {
+
+    if (Serial.available() > 0) {
+      char command = Serial.read();
+      if (command == 'R' || command == 'r') { // Assuming 'R' or 'r' will trigger restart
+        Serial.println("Restarting ESP32...");
+        delay(1000); // Give time for serial to transmit
+        ESP.restart(); // Restart the ESP32
+      }
+    }
+
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
