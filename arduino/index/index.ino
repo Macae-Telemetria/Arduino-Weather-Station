@@ -14,7 +14,6 @@
 #include "bt-integration.h"
 #include <string>
 #include <rtc_wdt.h>
-#include "OTA.h"
 // -- WATCH-DOG
 #define WDT_TIMEOUT 150000   
 #define SEND_BACKUP_TIME 0
