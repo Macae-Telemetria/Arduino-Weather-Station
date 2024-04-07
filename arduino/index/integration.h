@@ -25,7 +25,6 @@ unsigned long lastMsg = 0;
 char msg[MSG_BUFFER_SIZE];
 
 /***** WIFI ****/
-
 int setupWifi(const char *contextName, char* ssid, char*password)
 {
   Serial.printf("%s: Estabelecendo conexão inicial", contextName);
@@ -98,14 +97,19 @@ int connectNtp(const char *contextName)
   return 1;
 }
 
-
-int sendFilehttp(const String& fileName,const String& inputData, const String& url)
-{
+/* BK */
+int sendhttp(const String& fileName,const String& inputData, const String& url) {
+  
   Serial.println(url);
   HTTPClient http;
-  //http.setInsecure();
-  http.begin(wifiClient,url);
+
+  if(!http.begin(wifiClient,url)){
+    Serial.println("Falhou em iniciar conexão.");
+    return 0;
+  }
+
   Serial.print("FileName: ");Serial.println(fileName);
+
   // form data
   String boundary = "----ArduinoBoundary";
   String data = "";
@@ -121,9 +125,8 @@ int sendFilehttp(const String& fileName,const String& inputData, const String& u
   data += "\r\n--" + boundary + "--\r\n";
   http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary); 
 
+  // Send end of file marker
   int httpResponseCode = http.POST(data);
-
-  //int httpResponseCode = http.GET();
 
   if (httpResponseCode > 0) {
     Serial.print("HTTP Response code: ");
@@ -137,6 +140,140 @@ int sendFilehttp(const String& fileName,const String& inputData, const String& u
   http.end();
 
   return httpResponseCode;
-
 }
 
+int sendMultiPartFile(File& file, const String& url) {
+  HTTPClient http;
+  String boundary = "----ArduinoBoundary";
+
+  String fileName = file.name();
+  const int chunkSize = 2048;
+  uint8_t buffer[chunkSize]{0};
+
+  if (!http.begin(wifiClient, url)) {
+    Serial.println("Failed to begin connection.");
+    return 0;
+  }
+  Serial.println("Conexão iniciado com sucesso. " + String(url));
+
+  file.seek(0, fs::SeekEnd);
+  int fileSize = file.position();
+  if (fileSize >= 0) {
+    Serial.print("File size: ");
+    Serial.println(fileSize);
+    file.seek(0, fs::SeekSet);
+  } else {
+    Serial.println("Error getting file size.");
+    return 0;
+  }
+
+  int totalSent = 0;
+  int chunkCount = fileSize / chunkSize + (fileSize % chunkSize ? 1 : 0);
+  int chunkIndex = 0;
+
+  http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary); 
+  Serial.println("Enviando pacotes: "+ String(fileSize)+ "byte(s)");
+
+  while (file.available()) {
+    chunkIndex++;
+    Serial.println("=> ["+ String(chunkIndex)+ "/" + String(chunkCount)+"]");
+
+    memset(buffer, 0, chunkSize);
+    size_t bytesRead = file.readBytes((char*)buffer, chunkSize);
+
+    // form data
+    String formData = "";
+    formData += "--" + boundary + "\r\n";
+    formData += "Content-Disposition: form-data; name=\"files\"; filename=\""+fileName+"\"\r\n";
+    formData += "Transfer-Encoding: chunked\r\n\r\n";
+    formData += "Content-Type: text/csv\r\n\r\n";
+    formData += String((char*)buffer, bytesRead); // + "\r\n";
+  
+    // X-headers
+    formData += "\r\n--" + boundary + "\r\n";
+    formData += "Content-Disposition: form-data; name=\"test\"\r\n";
+    formData += "Content-Type: text/plain\r\n\r\n";
+    formData += "conteudo-teste";
+
+    formData += "\r\n--" + boundary + "--\r\n";
+    int httpResponseCode = http.POST(formData);
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    if(httpResponseCode >= 200){
+      totalSent = bytesRead;
+    }
+    delay(1000);
+  }
+
+  http.end();
+  return 1;
+}
+
+int streamFile(File& file, const String& url) {
+  HTTPClient http;
+  String fileName = file.name();
+  String slugStacao = config.station_name;
+
+  // Iniciando o backup
+  String iniciarBackupURl = url + "/start/" + slugStacao + "/" + fileName;
+  if (!http.begin(wifiClient, iniciarBackupURl)) {
+    Serial.println("Failed to begin connection.");
+    return 0;
+  }
+
+  int httpResponseCode = http.sendRequest("GET");
+  if (httpResponseCode != HTTP_CODE_OK) {
+      Serial.println("Failed to upload chunk. HTTP response code: " + String(httpResponseCode));
+      file.close();
+      http.end();
+      return 0;
+  }
+  String backupFilepath = http.getString();
+  http.end();
+
+  // Iniciar stream
+  String streamBackupUrl = url + "/stream?f=" + backupFilepath;
+  if (!http.begin(wifiClient, streamBackupUrl)) {
+    Serial.println("Failed to begin connection.");
+    file.close();
+    http.end();
+    return 0;
+  }
+  Serial.println("Conexão iniciado com sucesso. " + String(streamBackupUrl));
+
+  const size_t chunkSize = 2048;
+  uint8_t buffer[chunkSize];
+  int bytesRead;
+  while ((bytesRead = file.read(buffer, chunkSize)) > 0) {
+    http.addHeader("Content-Type", "application/octet-stream");
+    httpResponseCode = http.sendRequest("POST", buffer, bytesRead);
+  
+    if (httpResponseCode != HTTP_CODE_OK) {
+      Serial.println("Failed to upload chunk. HTTP response code: " + String(httpResponseCode));
+      file.close();
+      http.end();
+      return 0;
+    }
+  }
+
+  Serial.println("Done!");
+  file.close();
+  http.end();
+
+  // Finalizando o backup
+  String finalizarBackupURl = url + "/finish?f=" + backupFilepath;
+  if (!http.begin(wifiClient, finalizarBackupURl)) {
+    Serial.println("Failed to begin connection.");
+    return 0;
+  }
+
+  httpResponseCode = http.sendRequest("GET");
+  if (httpResponseCode == HTTP_CODE_OK) {
+    Serial.println("Backup realizado com sucesso!" + String(httpResponseCode));
+    SD.remove( String("/metricas/") + fileName );
+    return 1;
+  }
+
+  http.end();
+  return 0;
+}

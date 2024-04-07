@@ -11,7 +11,7 @@ struct Config {
   char mqtt_topic[64];
   int mqtt_port;
   int interval;
-  int bckpTime;
+  int backup_time;
 };
 
 struct Config config;

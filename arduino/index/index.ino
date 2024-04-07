@@ -16,7 +16,7 @@
 #include <rtc_wdt.h>
 //#include "OTA.h"
 // -- WATCH-DOG
-#define WDT_TIMEOUT 150000   
+#define WDT_TIMEOUT 350000   
 #define SEND_BACKUP_TIME 4 // 03:00 UTC
 // Pluviometro
 extern unsigned long lastPVLImpulseTime;
@@ -55,7 +55,6 @@ void watchdogRTC()
     rtc_wdt_disable();
     rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
     rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT); // timeout rtd_wdt 10000ms.
-    
     rtc_wdt_enable();           //Start the RTC WDT timer
     rtc_wdt_protect_on();       //Enable RTC WDT write protection
 }
@@ -79,10 +78,8 @@ void setup() {
 
   logIt("\nIniciando cartão SD");
   
-
   initSdCard();
   
-
   logIt("\ncdp");
   createDirectory("/metricas");
   createDirectory("/logs");
@@ -135,24 +132,23 @@ void setup() {
 
 void loop() {
   digitalWrite(LED3,HIGH);
+
   // -- WATCH-DOG
   rtc_wdt_feed();
-  // -- WATCH-DOG
 
+  // -- NTP
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
 
+  /* -- BACKUP AGENDADO -- */
   int hourNow = (timestamp / 3600) % 24;
-  if(hourNow==config.bckpTime){
-    if(!doneSendingBackup){
-      if(BK::openDir("/metricas")){
-        String filePartition,filePartitionName;
-        while(BK::next(filePartition,filePartitionName));
-        BK::close();
-        doneSendingBackup = true;
-      }
+  if(hourNow==config.backup_time){
+    if(!doneSendingBackup) {
+      BK::execute();
+      doneSendingBackup = true;
+    }
   }
-  else doneSendingBackup = false;
+  else { doneSendingBackup = false;}
 
   convertTimeToLocaleDate(timestamp);
 
@@ -160,8 +156,6 @@ void loop() {
   anemometerCounter = 0;
   smallestDeltatime = 4294967295;
   windGustReset();
-
-  
 
   do {
 
@@ -186,7 +180,6 @@ void loop() {
     healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
     healthCheck.isMqttConnected = mqttClient.loop();
     healthCheck.timeRemaining = timeRemaining;
-
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
 
