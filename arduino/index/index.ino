@@ -1,7 +1,8 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
-// Versão: 1.7.0 Wind-gust is now 3 second average;
-#
+// Versão: 1.8.0 HTTP send metrics;
+#define FIRMWARE_VERSION 1.8
+
 //.........................................................................................................................
 
 #include "constants.h"
