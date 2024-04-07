@@ -36,13 +36,22 @@ Dedicamos atenção especial à economia de recursos durante o processo de fabri
 Para mais informações, entre em contato com o autor do projeto:
 
 * [Lucas Fonseca Barreto](https://github.com/fonsecaBarreto)
+* [Gabriel Fonseca Barreto](https://github.com/fonsecaBarreto)
+
 Use o código com cuidado.
 
-# Dependencias externas
+# Dependencias
  * [DHT-sensor-library](https://github.com/adafruit/DHT-sensor-library)
  * [NTPClient](https://github.com/arduino-libraries/NTPClient)
  * [PubSubClient](https://github.com/knolleary/pubsubclient)
  * [Adafruit_BMP085](https://github.com/adafruit/Adafruit-BMP085-Library)
  * [DHT-sensor-library](https://github.com/adafruit/DHT-sensor-library)
- * [ArduinoBLE](https://github.com/arduino-libraries/ArduinoBLE)
  * [Aduinojson](https://arduinojson.org/?utm_source=meta&utm_medium=library.properties)
+
+
+# Comandos importante
+$ sudo adduser <username> dialout
+$ sudo chmod a+rw /dev/ttyUSB0
+
+# board:
+	https://dl.espressif.com/dl/package_esp32_index.json

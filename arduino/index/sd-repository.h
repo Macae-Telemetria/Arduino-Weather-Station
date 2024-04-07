@@ -77,6 +77,7 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           strlcpy(config.mqtt_topic, doc["MQTT_TOPIC"] | "", sizeof(config.mqtt_topic));
           config.mqtt_port = doc["MQTT_PORT"] | 1883;
           config.interval = doc["INTERVAL"] | 60000;
+          config.backup_time = doc["BACKUP_TIME"] | 0;
           file.close();
           success = true;
           serializeJson(doc, configJson);
@@ -102,22 +103,17 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
   return;
 }
 
-void readFile(fs::FS &fs, const String& path, String &data)
-{
-    File file = fs.open(path, FILE_READ);
-    if (!file)
-    {
-        Serial.println("Failed to open file for reading");
-        return;
-    }
-
-    data = "";
-    while (file.available())
-    {
-        data += (char)file.read();
-    }
-
-    file.close();
+void readFile(fs::FS &fs, const String& path, String &data) {
+  File file = fs.open(path, FILE_READ);
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+  data = "";
+  while (file.available()) {
+      data += (char)file.read();
+  }
+  file.close();
 }
 
 
@@ -175,45 +171,40 @@ void storeLog(const char *payload){
   file.close();
 } 
 
-//----------------------------------------------//
-namespace BK
-{
-File dir;
-File entry;
-String dirNome;
-void printFileContent(File file) {
-  while (file.available()) {
-    Serial.write(file.read());
-  }
-  Serial.println();
-}
-void listAndPrintFiles(const char* dirName) {
-  File dir = SD.open(dirName);
-  if (!dir) {
-    Serial.println("Failed to open directory");
-    return;
-  }
-      while (true) {
-    File entry = dir.openNextFile();
-    if (!entry) {
-      // no more files
-      break;
-    }
-    String data;
-    while (entry.available())
-    {
-        data += (char)entry.read();
-    }
-   // sendFilehttp(data,"http://192.168.0.173:3001/bulk-upload/estacion",entry.name());
-    Serial.println(entry.name());
-    //printFileContent(entry);
-    entry.close();
+int sendFilehttp(const String& fileName,const String& inputData, const String& url);
+int sendMultiPartFile(File& file, const String& url);
+int streamFile(File& file, const String& url);
+
+String insertStringBeforeExtension(const String& originalFilename, const String& insertString) {
+  int dotPosition = originalFilename.lastIndexOf('.');
+  
+  if (dotPosition != -1) {
+    String filename = originalFilename.substring(0, dotPosition);
+    String extension = originalFilename.substring(dotPosition);
+    return filename + insertString + extension;
+  } else {
+    // If no dot is found, return an empty string to indicate an error
+    return "";
   }
 }
 
-bool openDir(const char* dirName)
-  {
+//----------------------------------------------//
+namespace BK {
+  File dir;
+  File entry;
+  String dirNome;
+
+  void deleteFile(const String& fileName) {
+    if (SD.remove(dirNome+String("/")+fileName)) {
+      Serial.print("File ");
+      Serial.print(fileName);
+      Serial.println(" deleted successfully.");
+    }
+  }
+
+  bool openDir(const char* dirName) { 
     dir = SD.open(dirName);
+    Serial.println(dir.name());
     if (!dir) {
       Serial.println("Failed to open directory");
       return 0;
@@ -222,33 +213,68 @@ bool openDir(const char* dirName)
     return 1;
   }
 
-  bool next(String & fileContent, String& fileName)
-  {
+  bool execute(){
+    Serial.println("Iniciando backup de arquivos csv.");
+
+    if(!BK::openDir("/metricas")){
+      Serial.println("Não foi possivel abrir pasta de metricas.");
+      return 0;
+    }
+
+    Serial.println("Pasta de metricas aberta com sucesso!");
+
+    int filesCount = 0;
+    int filesUploaded = 0;
+
+    while(entry = dir.openNextFile()){        
+      Serial.print("Arquivo encontrado: ");
+      Serial.println(entry.name());
+      String url = "http://192.168.0.173:3001/iotgateway/backup";
+      int resutlado = streamFile(entry, url);
+      Serial.println("");
+      filesCount++;
+      delay(2000);
+    } 
+
+    Serial.println("Arquivos enviados com sucesso!");
+    Serial.print("Total de arquivos:");
+    Serial.println(filesCount);
+    return 1;
+  }
+
+  bool next(String& fileContent, String& fileName) {
     entry = dir.openNextFile();
     if (!entry) {
       return 0;
     }
-    while (entry.available())
-    {
-        fileContent += (char)entry.read();
-    }
+
     fileName = entry.name();
-      return 1;
-  }
+    int count =0;
+    int partitions=0;
+    int resultado=0;
 
-  void close()
-  {
-        entry.close();
-  }
+    while (entry.available()){
+      char c = (char)entry.read();
+      fileContent += c;
+      count++;
+      if(count >=1000 && (c=='\n')) {
 
-    void deleteFile(const String& fileName)
-  {
-     if (SD.remove(dirNome+String("/")+fileName)) {
-    Serial.print("File ");
-    Serial.print(fileName);
-    Serial.println(" deleted successfully.");
+        resultado = sendFilehttp(
+          insertStringBeforeExtension(fileName, String("_part") + String(partitions)),
+          fileContent, 
+          "http://192.168.0.173:3001/iotgateway/bulk-upload/test-local-1");
+        
+        partitions++;
+        count =0;
+        fileContent = "";
+      }
     }
+    
+    entry.close(); 
+    if (resultado > 200 && resultado < 204) {
+      // deleteFile(fileName);
+    }
+    return 1;
   }
-
 
 }

@@ -1,7 +1,8 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
 // Versão: 1.8.0 HTTP send metrics;
-#DEFINE FIRMWARE_VERSION 1.8
+#define FIRMWARE_VERSION 1.8
+
 //.........................................................................................................................
 
 #include "constants.h"
@@ -14,9 +15,10 @@
 #include "bt-integration.h"
 #include <string>
 #include <rtc_wdt.h>
+//#include "OTA.h"
 // -- WATCH-DOG
-#define WDT_TIMEOUT 150000   
-#define SEND_BACKUP_TIME 0
+#define WDT_TIMEOUT 350000   
+#define SEND_BACKUP_TIME 4 // 03:00 UTC
 // Pluviometro
 extern unsigned long lastPVLImpulseTime;
 extern unsigned int rainCounter;
@@ -54,7 +56,6 @@ void watchdogRTC()
     rtc_wdt_disable();
     rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
     rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT); // timeout rtd_wdt 10000ms.
-    
     rtc_wdt_enable();           //Start the RTC WDT timer
     rtc_wdt_protect_on();       //Enable RTC WDT write protection
 }
@@ -78,10 +79,8 @@ void setup() {
 
   logIt("\nIniciando cartão SD");
   
-
   initSdCard();
   
-
   logIt("\ncdp");
   createDirectory("/metricas");
   createDirectory("/logs");
@@ -134,40 +133,24 @@ void setup() {
 
 void loop() {
   digitalWrite(LED3,HIGH);
+
   // -- WATCH-DOG
   rtc_wdt_feed();
-  // -- WATCH-DOG
 
+  // -- NTP
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
 
-  unsigned long long hourNow = (timestamp / 3600) % 24;
-  
-  if(hourNow==SEND_BACKUP_TIME)
-  {
-    if(!doneSendingBackup){
+  /* -- BACKUP AGENDADO -- */
+  int hourNow = (timestamp / 3600) % 24;
+  if (hourNow == ( (config.backup_time + 3)  % 24)) {
+    if(!doneSendingBackup) {
+      BK::execute();
       doneSendingBackup = true;
-     if(BK::openDir("/metricas"))
-    {
-      Serial.println("Got here: opend");
-      String stringu;
-      String fileNamo;
-      while(BK::next(stringu,fileNamo))
-      {
-        Serial.println("nesxting");
-        int resultado = sendFilehttp(fileNamo,stringu,"http://192.168.0.173:3001/bulk-upload/estacion");
-        if (resultado ==201)
-          BK::deleteFile(fileNamo);
-        stringu = "";
-        fileNamo= "";
-      }
-      BK::close();
-    }
     }
   }
-  else doneSendingBackup = false;
+  else { doneSendingBackup = false;}
 
-  //else doneSendingBackup = false;
   convertTimeToLocaleDate(timestamp);
 
   rainCounter = 0;
@@ -175,9 +158,17 @@ void loop() {
   smallestDeltatime = 4294967295;
   windGustReset();
 
-  
-
   do {
+
+    if (Serial.available() > 0) {
+      char command = Serial.read();
+      if (command == 'R' || command == 'r') { // Assuming 'R' or 'r' will trigger restart
+        Serial.println("Restarting ESP32...");
+        delay(1000); // Give time for serial to transmit
+        ESP.restart(); // Restart the ESP32
+      }
+    }
+
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
@@ -190,7 +181,6 @@ void loop() {
     healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
     healthCheck.isMqttConnected = mqttClient.loop();
     healthCheck.timeRemaining = timeRemaining;
-
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
 
