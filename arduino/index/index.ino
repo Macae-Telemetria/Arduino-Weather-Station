@@ -142,7 +142,7 @@ void loop() {
 
   /* -- BACKUP AGENDADO -- */
   int hourNow = (timestamp / 3600) % 24;
-  if(hourNow==config.backup_time){
+  if (hourNow == ( (config.backup_time + 3)  % 24)) {
     if(!doneSendingBackup) {
       BK::execute();
       doneSendingBackup = true;

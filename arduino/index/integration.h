@@ -202,7 +202,6 @@ int sendMultiPartFile(File& file, const String& url) {
     if(httpResponseCode >= 200){
       totalSent = bytesRead;
     }
-    delay(1000);
   }
 
   http.end();

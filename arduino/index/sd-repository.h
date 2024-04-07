@@ -227,17 +227,13 @@ namespace BK {
     int filesUploaded = 0;
 
     while(entry = dir.openNextFile()){        
-
       Serial.print("Arquivo encontrado: ");
       Serial.println(entry.name());
-
       String url = "http://192.168.0.173:3001/iotgateway/backup";
       int resutlado = streamFile(entry, url);
-      delay(10000);
-
       Serial.println("");
       filesCount++;
-      delay(10000);
+      delay(2000);
     } 
 
     Serial.println("Arquivos enviados com sucesso!");
