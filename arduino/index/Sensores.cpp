@@ -23,21 +23,31 @@ unsigned int gustIndex = 0;
 unsigned int previousCounter= 0;
 Sensors sensors;
 
+int rps[20]{0};
+//Reset rain and  anemeter Counters
+void resetSensors(){
+  rainCounter = 0;
+  anemometerCounter = 0;
+  smallestDeltatime = 4294967295;
+  gustIndex=0; 
+  previousCounter = 0;
+  memset(rps,0,sizeof(rps));
+}
+
 void setupSensors(){
   // Inciando DHT
-  Serial.println("Iniciando DHT");
+  OnDebug(Serial.println("Iniciando DHT");)
   dht.begin();
 
   // Iniciando BMP
-  Serial.println('Iniciando BMP ');
+  OnDebug(Serial.println('Iniciando BMP ');)
   beginBMP();
 }
 
-void beginBMP()
-{
+void beginBMP(){
   sensors.bits.bmp= bmp.begin();
   if (!sensors.bits.bmp) {
-    Serial.println("Could not find a valid BMP180 sensor, check wiring!");
+    OnDebug(Serial.println("Could not find a valid BMP180 sensor, check wiring!");)
   }
 }
 
@@ -82,7 +92,7 @@ void DHTRead(float& hum, float& temp) {
   hum = dht.readHumidity();        // umidade relativa
   temp = dht.readTemperature();  //  temperatura em graus Celsius
   if (isnan(hum) || isnan(temp)){
-    Serial.println("Falha ao ler o sensor DHT!");
+    OnDebug(Serial.println("Falha ao ler o sensor DHT!");)
   }
 }
 
@@ -93,7 +103,7 @@ void BMPRead(float& press)
     // float temperature = bmp.readTemperature(); // isnan(temperature)
     float pressure = bmp.readPressure() / 100.0; // Convert Pa to hPa
     if (isnan(pressure)) {
-      Serial.println("Falha ao ler o sensor BMP180!");
+      OnDebug(Serial.println("Falha ao ler o sensor BMP180!");)
       press = -1;
       return;
     }
@@ -102,8 +112,6 @@ void BMPRead(float& press)
     beginBMP();
   }
 }
-
-int rps[20]{0};
 
 void WindGustRead(unsigned int now)
 {
@@ -119,15 +127,10 @@ void WindGustRead(unsigned int now)
       gustIndex = gustIndex%20;
     }
 }
-void windGustReset(){
-  gustIndex=0; 
-  previousCounter = 0;
-  memset(rps,0,sizeof(rps));
-  }
 
 int findMax(int arr[], int size) {
   if (size <= 0) {
-      printf("Array is empty.\n");
+      OnDebug(printf("Array is empty.\n");)
       return 0; 
   }
   int max = arr[0];

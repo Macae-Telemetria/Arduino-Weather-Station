@@ -28,3 +28,10 @@ inline char* strVals[NUMDIRS] = {"E", "NE", "N", "NW", "W", "SW", "S", "SE"};
 inline char dirOffset = 0;
 
 inline bool falha = false;
+
+#define DEBUG_MODE
+#ifdef DEBUG_MODE
+    #define OnDebug(x) x
+#else
+    #define OnDebug(x)
+#endif

@@ -12,7 +12,7 @@ int findMax(int arr[], int size);
 void WindGustRead(unsigned int now);
 void windGustReset();
 
-
+void resetSensors();
 
 union  Sensors{
     struct {
@@ -26,3 +26,5 @@ union  Sensors{
         bool aux4 : 1;
     } bits { 0 };
 };
+
+
