@@ -1,7 +1,6 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
 // Versão: 1.7.0 Wind-gust is now 3 second average;
-
 //.........................................................................................................................
 
 #include "constants.h"
@@ -13,11 +12,12 @@
 #include "esp_system.h"
 #include "bt-integration.h"
 #include <string>
+#include <vector>
 #include <rtc_wdt.h>
-#include "OTA.h"
+
 // -- WATCH-DOG
-#define WDT_TIMEOUT 150000   
-#define SEND_BACKUP_TIME 0
+#define WDT_TIMEOUT 100000   
+
 // Pluviometro
 extern unsigned long lastPVLImpulseTime;
 extern unsigned int rainCounter;
@@ -29,18 +29,13 @@ extern unsigned long smallestDeltatime;
 extern int rps[20];
 // Sensors
 extern Sensors sensors;
-#define STRINGIZE(x) #x
-#define EXPAND_AND_STRINGIZE(x) STRINGIZE(x)
+
 // globals
 long startTime;
 int timeRemaining=0;
 std::string jsonConfig;
 String formatedDateString = "";
-struct HealthCheck healthCheck = {EXPAND_AND_STRINGIZE(FIRMWARE_VERSION), 0, false, false, 0, 0};
-
-//-------------Do every ...--------------------//
-bool doneSendingBackup = 0;
-//--------------------------------------------//
+struct HealthCheck healthCheck = {"1.7.0", 0, false, false, 0, 0};
 
 void logIt(const std::string &message, bool store = false){
   Serial.print(message.c_str());
@@ -61,8 +56,8 @@ void watchdogRTC()
 }
 
 void setup() {
-  delay(2000);
-  logIt("\n >>SInmeteorologia<<\n");
+  delay(3000);
+  logIt("\n >> Sistema Integrado de meteorologia << \n");
   pinMode(LED1,OUTPUT);
   pinMode(LED2,OUTPUT);
   pinMode(LED3,OUTPUT);
@@ -83,14 +78,14 @@ void setup() {
   initSdCard();
   
 
-  logIt("\ncdp");
+  logIt("\nCriando diretorios padrões");
   createDirectory("/metricas");
   createDirectory("/logs");
 
-  logIt("\n1. on;", true);
+  logIt("\n1. Estação iniciada;", true);
   loadConfiguration(SD, configFileName, config, jsonConfig);
 
-  logIt("\n1.1 Init bt;", true);
+  logIt("\n1.1 Iniciando bluetooth;", true);
   BLE::Init(config.station_name, bluetoothController);
   BLE::updateValue(CONFIGURATION_UUID, jsonConfig);
 
@@ -135,6 +130,7 @@ void setup() {
 
 void loop() {
   digitalWrite(LED3,HIGH);
+
   // -- WATCH-DOG
   rtc_wdt_feed();
   // -- WATCH-DOG
@@ -142,42 +138,14 @@ void loop() {
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
 
-  unsigned long long hourNow = (timestamp / 3600) % 24;
-  
-  if(hourNow==SEND_BACKUP_TIME)
-  {
-    if(!doneSendingBackup){
-      doneSendingBackup = true;
-     if(BK::openDir("/metricas"))
-    {
-      Serial.println("Got here: opend");
-      String stringu;
-      String fileNamo;
-      while(BK::next(stringu,fileNamo))
-      {
-        Serial.println("nesxting");
-        int resultado = sendFilehttp(fileNamo,stringu,"http://192.168.0.173:3001/bulk-upload/estacion");
-        if (resultado ==201)
-          BK::deleteFile(fileNamo);
-        stringu = "";
-        fileNamo= "";
-      }
-      BK::close();
-    }
-    }
-  }
-  else doneSendingBackup = false;
-
-  //else doneSendingBackup = false;
   convertTimeToLocaleDate(timestamp);
 
   rainCounter = 0;
   anemometerCounter = 0;
+
   smallestDeltatime = 4294967295;
+  memset(rps,0,sizeof(rps));
   windGustReset();
-
-  
-
   do {
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
@@ -191,7 +159,6 @@ void loop() {
     healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
     healthCheck.isMqttConnected = mqttClient.loop();
     healthCheck.timeRemaining = timeRemaining;
-
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
 
@@ -217,15 +184,15 @@ void loop() {
   Data.wind_dir = getWindDir();
   Data.rain_acc = rainCounter * VOLUME_PLUVIOMETRO;
   Data.wind_gust  = 3.052f /3.0f* ANEMOMETER_CIRC *findMax(rps,sizeof(rps)/sizeof(int));
-  Data.wind_speed = 3.052 * (ANEMOMETER_CIRC * anemometerCounter) / (config.interval / 1000.0); // m/s
+  Data.wind_speed = 3.052 * (ANEMOMETER_CIRC * anemometerCounter) / (INTERVAL / 1000.0); // m/s
   
   DHTRead(Data.humidity, Data.temperature);
   BMPRead(Data.pressure);
 
   // Apresentação
   parseData();
-  //Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); 
-  //Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
+  Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); 
+  Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
 
   // Armazenamento local
   Serial.println("\n Gravando em disco:");
@@ -245,17 +212,17 @@ int bluetoothController(const char *uid, const std::string &content) {
   if (content.length() == 0) return 0;
   printf("Bluetooth message received: %s\n", uid);
   if (content == "@@RESTART") {
-    logIt("RAF;", true);
+    logIt("Reiniciando Arduino a força;", true);
     delay(2000);
     ESP.restart();
     return 1;
   } else if(content == "@@BLE_SHUTDOWN") {
-    logIt("BLEOFF ", true);
+    logIt("Desligando o BLE permanentemente", true);
     delay(2000);
     BLE::stop();
     return 1;
   } else {
-    logIt("Mcdavbt", true);
+    logIt("Modificando configuração de ambiente via bluetooth", true);
     delay(2000);
     createFile(SD, "/config.txt", content.c_str());
     logIt("Reiniciando Arduino a força;", true);

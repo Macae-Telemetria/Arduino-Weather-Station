@@ -119,22 +119,18 @@ void WindGustRead(unsigned int now)
       gustIndex = gustIndex%20;
     }
 }
-void windGustReset(){
-  gustIndex=0; 
-  previousCounter = 0;
-  memset(rps,0,sizeof(rps));
-  }
+void windGustReset(){gustIndex=0;  previousCounter = 0;}
 
 int findMax(int arr[], int size) {
-  if (size <= 0) {
-      printf("Array is empty.\n");
-      return 0; 
-  }
-  int max = arr[0];
-  for (int i = 1; i < size; i++) {
-      if (arr[i] > max) {
-          max = arr[i];
-      }
-  }
-  return max;
+    if (size <= 0) {
+        printf("Array is empty.\n");
+        return 0; 
+    }
+    int max = arr[0];
+    for (int i = 1; i < size; i++) {
+        if (arr[i] > max) {
+            max = arr[i];
+        }
+    }
+    return max;
 }

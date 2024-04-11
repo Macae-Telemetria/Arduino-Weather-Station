@@ -39,13 +39,13 @@ void createDirectory(const char * directory){
   Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);
   if (!SD.exists(directory)) {
     if (SD.mkdir(directory)) {
-      Serial.printf("\n- Diretorio criado com sucesso!");
+      Serial.printf("\n     - Diretorio criado com sucesso!");
     } else {
-      Serial.printf("\n- Falha ao criar diretorio.");
+      Serial.printf("\n     - Falha ao criar diretorio.");
     }
     return;
   }
-  Serial.printf("\n - Diretorio já existe.");
+  Serial.printf("\n     - Diretorio já existe.");
 }
 
 // Carrega arquivo de configuração inicial
@@ -102,25 +102,6 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
   return;
 }
 
-void readFile(fs::FS &fs, const String& path, String &data)
-{
-    File file = fs.open(path, FILE_READ);
-    if (!file)
-    {
-        Serial.println("Failed to open file for reading");
-        return;
-    }
-
-    data = "";
-    while (file.available())
-    {
-        data += (char)file.read();
-    }
-
-    file.close();
-}
-
-
 void createFile(fs::FS &fs, const char * path, const char * message){
     Serial.printf("Salvando json no cartao SD: %s\n.", path); 
 
@@ -174,81 +155,3 @@ void storeLog(const char *payload){
   if (file) { file.print(payload); }
   file.close();
 } 
-
-//----------------------------------------------//
-namespace BK
-{
-File dir;
-File entry;
-String dirNome;
-void printFileContent(File file) {
-  while (file.available()) {
-    Serial.write(file.read());
-  }
-  Serial.println();
-}
-void listAndPrintFiles(const char* dirName) {
-  File dir = SD.open(dirName);
-  if (!dir) {
-    Serial.println("Failed to open directory");
-    return;
-  }
-      while (true) {
-    File entry = dir.openNextFile();
-    if (!entry) {
-      // no more files
-      break;
-    }
-    String data;
-    while (entry.available())
-    {
-        data += (char)entry.read();
-    }
-   // sendFilehttp(data,"http://192.168.0.173:3001/bulk-upload/estacion",entry.name());
-    Serial.println(entry.name());
-    //printFileContent(entry);
-    entry.close();
-  }
-}
-
-bool openDir(const char* dirName)
-  {
-    dir = SD.open(dirName);
-    if (!dir) {
-      Serial.println("Failed to open directory");
-      return 0;
-    }
-    dirNome=dirName;
-    return 1;
-  }
-
-  bool next(String & fileContent, String& fileName)
-  {
-    entry = dir.openNextFile();
-    if (!entry) {
-      return 0;
-    }
-    while (entry.available())
-    {
-        fileContent += (char)entry.read();
-    }
-    fileName = entry.name();
-      return 1;
-  }
-
-  void close()
-  {
-        entry.close();
-  }
-
-    void deleteFile(const String& fileName)
-  {
-     if (SD.remove(dirNome+String("/")+fileName)) {
-    Serial.print("File ");
-    Serial.print(fileName);
-    Serial.println(" deleted successfully.");
-    }
-  }
-
-
-}
