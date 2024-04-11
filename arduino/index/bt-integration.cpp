@@ -7,6 +7,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include "constants.h"
 
 BLEServer *pServer = nullptr;
 BLECharacteristic *pConfigCharacteristic = nullptr;
@@ -16,7 +17,7 @@ bool deviceConnected = false;
 int (*characteristicCB)(const char *uid, const std::string &content);
 class ServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer *pServer){
-        std::cout << "Novo dispositivo conectado.\n";
+        OnDebug(std::cout << "Novo dispositivo conectado.\n";)
         deviceConnected = true;
     };
 
@@ -84,7 +85,7 @@ void BLE::Init(const char *boardName, int (*callback)(const char *uid, const std
 
 void BLE::updateValue(const char *characteristicId, const std::string &newValue){
     if (newValue.length() == 0) return;
-    std::cout << "\n  - EvaloresviaBt (" << newValue << ") \n";
+    OnDebug(std::cout << "\n  - EvaloresviaBt (" << newValue << ") \n";)
     if(characteristicId == HEALTH_CHECK_UUID){
         pHealthCharacteristic->setValue(newValue);
         pHealthCharacteristic->notify();
@@ -92,8 +93,8 @@ void BLE::updateValue(const char *characteristicId, const std::string &newValue)
         pConfigCharacteristic->setValue(newValue);
         pConfigCharacteristic->notify();
     } else {
-        std::cout << "Cnf.\n";
-        std::cout << newValue;
+        OnDebug(std::cout << "Cnf.\n";
+        std::cout << newValue;)
     }
 }
 

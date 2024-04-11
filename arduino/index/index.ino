@@ -1,7 +1,8 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
 // Versão: 1.8.0 HTTP send metrics;
-#DEFINE FIRMWARE_VERSION 1.8
+#define FIRMWARE_VERSION 1.8
+
 //.........................................................................................................................
 
 #include "constants.h"
@@ -9,14 +10,21 @@
 #include "sd-repository.h"
 #include "integration.h"
 #include "sensores.h"
-#include <stdio.h>
 #include "esp_system.h"
 #include "bt-integration.h"
+#include "backup.h"
+//#include <PubSubClient.h>
+#include <stdio.h>
 #include <string>
 #include <rtc_wdt.h>
+#include <NTPClient.h>
+namespace TLM{
+extern NTPClient timeClient;
+}
+//extern PubSubClient mqttClient;
+//#include "OTA.h"
 // -- WATCH-DOG
-#define WDT_TIMEOUT 150000   
-#define SEND_BACKUP_TIME 0
+#define WDT_TIMEOUT 350000   
 // Pluviometro
 extern unsigned long lastPVLImpulseTime;
 extern unsigned int rainCounter;
@@ -24,10 +32,8 @@ extern unsigned int rainCounter;
 // Anemometro (Velocidade do vento)
 extern unsigned long lastVVTImpulseTime;
 extern float anemometerCounter;
-extern unsigned long smallestDeltatime;
 extern int rps[20];
-// Sensors
-extern Sensors sensors;
+
 #define STRINGIZE(x) #x
 #define EXPAND_AND_STRINGIZE(x) STRINGIZE(x)
 // globals
@@ -41,23 +47,13 @@ struct HealthCheck healthCheck = {EXPAND_AND_STRINGIZE(FIRMWARE_VERSION), 0, fal
 bool doneSendingBackup = 0;
 //--------------------------------------------//
 
-void logIt(const std::string &message, bool store = false){
-  Serial.print(message.c_str());
+void logIt(const String &message, bool store = false){
+  Serial.print(message);
   if(store == true){
     storeLog(message.c_str());
   }
 }
 
-void watchdogRTC()
-{
-    rtc_wdt_protect_off();      //Disable RTC WDT write protection
-    rtc_wdt_disable();
-    rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
-    rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT); // timeout rtd_wdt 10000ms.
-    
-    rtc_wdt_enable();           //Start the RTC WDT timer
-    rtc_wdt_protect_on();       //Enable RTC WDT write protection
-}
 
 void setup() {
   delay(2000);
@@ -78,10 +74,8 @@ void setup() {
 
   logIt("\nIniciando cartão SD");
   
-
   initSdCard();
   
-
   logIt("\ncdp");
   createDirectory("/metricas");
   createDirectory("/logs");
@@ -94,15 +88,15 @@ void setup() {
   BLE::updateValue(CONFIGURATION_UUID, jsonConfig);
 
   logIt("\n1.2 Estabelecendo conexão com wifi ", true);
-  setupWifi("  - Wifi", config.wifi_ssid, config.wifi_password);
-  int nivelDbm = (WiFi.RSSI()) * -1;
+  TLM::setupWifi("  - Wifi", config.wifi_ssid, config.wifi_password);
+  int nivelDbm = (TLM::getWifiSginal()) * -1;
   storeLog((String(nivelDbm) + ";").c_str());
 
   logIt("\n1.3 Estabelecendo conexão com NTP;", true);
-  connectNtp("  - NTP");
+  TLM::connectNtp("  - NTP");
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
-  setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+  TLM::setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
 
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
@@ -112,16 +106,22 @@ void setup() {
   lastPVLImpulseTime = now;
 
   // 2; Inicio
-  Serial.printf("\n >> PRIMEIRA ITERAÇÃO\n");
+  OnDebug(Serial.printf("\n >> PRIMEIRA ITERAÇÃO\n");)
 
-  int timestamp = timeClient.getEpochTime();
+  int timestamp = TLM::timeClient.getEpochTime();
   convertTimeToLocaleDate(timestamp);
   
-  String dataHora = String(formatedDateString) + "T" + timeClient.getFormattedTime();
+  String dataHora = String(formatedDateString) + "T" + TLM::timeClient.getFormattedTime();
   storeLog(("\n" + dataHora + "\n").c_str());
 
-  // -- WATCH-DOG
-  watchdogRTC();
+  // -- WATCH-DOG -- //
+    rtc_wdt_protect_off();      //Disable RTC WDT write protection
+    rtc_wdt_disable();
+    rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
+    rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT); // timeout rtd_wdt 10000ms.
+    rtc_wdt_enable();           //Start the RTC WDT timer
+    rtc_wdt_protect_on();       //Enable RTC WDT write protection
+  // ----------------- //
 
   //Yellow Blink
   for(int i=0; i<7; i++) {
@@ -130,76 +130,72 @@ void setup() {
   }
 
   startTime = millis();
+
+  String up;
+  readFile(SD,"/updated",up);
+  doneSendingBackup = (up.toInt()==(timestamp / 3600));
+  
 }
 
 void loop() {
   digitalWrite(LED3,HIGH);
+
   // -- WATCH-DOG
   rtc_wdt_feed();
-  // -- WATCH-DOG
 
-  timeClient.update();
-  int timestamp = timeClient.getEpochTime();
+  // -- NTP
+  TLM::timeClient.update();
+  int timestamp = TLM::timeClient.getEpochTime();
 
-  unsigned long long hourNow = (timestamp / 3600) % 24;
-  
-  if(hourNow==SEND_BACKUP_TIME)
-  {
-    if(!doneSendingBackup){
+  /* -- BACKUP AGENDADO -- */
+  int hourNow = (timestamp / 3600) % 24;
+  if (hourNow == ( (config.backup_time + 3)  % 24)) {
+    if(!doneSendingBackup) {
+      BK::execute();
       doneSendingBackup = true;
-     if(BK::openDir("/metricas"))
-    {
-      Serial.println("Got here: opend");
-      String stringu;
-      String fileNamo;
-      while(BK::next(stringu,fileNamo))
-      {
-        Serial.println("nesxting");
-        int resultado = sendFilehttp(fileNamo,stringu,"http://192.168.0.173:3001/bulk-upload/estacion");
-        if (resultado ==201)
-          BK::deleteFile(fileNamo);
-        stringu = "";
-        fileNamo= "";
-      }
-      BK::close();
-    }
+      createFile(SD, "/updated", String(timestamp / 3600).c_str());
     }
   }
-  else doneSendingBackup = false;
+  else { doneSendingBackup = false;}
 
-  //else doneSendingBackup = false;
   convertTimeToLocaleDate(timestamp);
-
-  rainCounter = 0;
-  anemometerCounter = 0;
-  smallestDeltatime = 4294967295;
-  windGustReset();
-
-  
+  resetSensors();
 
   do {
+
+  OnDebug(
+    if (Serial.available() > 0) {
+      char command = Serial.read();
+      if (command == 'R' || command == 'r') { // 'R' or 'r' will trigger restart
+        OnDebug(Serial.println("Restarting ESP32...");)
+        delay(1000); // Give time for serial to transmit
+        ESP.restart(); // Restart the ESP32
+      }
+    })
+
+
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
     WindGustRead(now);
-    if(ceil(timeRemaining % 5000) != 0) continue;
+
+    if((timeRemaining % 5000) != 0) continue;
 
     // Health check
     healthCheck.timestamp = timestamp;
-    healthCheck.isWifiConnected = WiFi.status() == WL_CONNECTED;
-    healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
-    healthCheck.isMqttConnected = mqttClient.loop();
+    healthCheck.isWifiConnected = TLM::isWifiConnected();
+    healthCheck.wifiDbmLevel = healthCheck.isWifiConnected *(TLM::getWifiSginal()) * -1;
+    healthCheck.isMqttConnected = TLM::loopMqtt();
     healthCheck.timeRemaining = timeRemaining;
-
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
 
-    Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));
-    Serial.printf("\n  - %s",hcCsv);
+    OnDebug(Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));)
+    OnDebug(Serial.printf("\n  - %s",hcCsv));
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
-      healthCheck.isMqttConnected = connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+      healthCheck.isMqttConnected = TLM::connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
     }
 
     // Atualizando BLE advertsting value
@@ -210,7 +206,7 @@ void loop() {
   startTime = millis();
   // Computando dados
   
-  Serial.printf("\n\n Computando dados ...\n");
+  OnDebug(Serial.printf("\n\n Computando dados ...\n");)
 
   Data.timestamp = timestamp;
   Data.wind_dir = getWindDir();
@@ -224,25 +220,29 @@ void loop() {
   // Apresentação
   parseData();
   //Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); 
-  //Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
+  Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
 
-  // Armazenamento local
-  Serial.println("\n Gravando em disco:");
-  storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
+
 
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
-  bool measurementSent = sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
+  bool measurementSent = TLM::sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
+  if(!measurementSent)
+    storeMeasurement("/failures", "falhas.csv", metricsCsvOutput);
+
+  // Armazenamento local
+  OnDebug(Serial.println("\n Gravando em disco:");)
+  storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
 
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
-  Serial.printf("\n >> PROXIMA ITERAÇÃO\n");
+  OnDebug(Serial.printf("\n >> PROXIMA ITERAÇÃO\n");)
 }
 
 // callbacks
-int bluetoothController(const char *uid, const std::string &content) {
+int bluetoothController(const char *uid, const std::string& content) {
   if (content.length() == 0) return 0;
-  printf("Bluetooth message received: %s\n", uid);
+  OnDebug(printf("Bluetooth message received: %s\n", uid);)
   if (content == "@@RESTART") {
     logIt("RAF;", true);
     delay(2000);
