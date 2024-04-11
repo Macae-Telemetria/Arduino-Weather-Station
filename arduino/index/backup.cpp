@@ -22,7 +22,19 @@ static const String dirNome="/metricas";
     }
   }
 
+  bool execute(){
+    String url = "http://146.190.171.0:3001/iotgateway/backup";
+    File file = SD.open("/failures/falhas.csv", FILE_READ);
+    
+    OnDebug(Serial.print("Arquivo encontrado: ");
+    Serial.println(file.name());)
+    int resutlado = TLM::streamFile(file, url);
+    OnDebug(Serial.println("");)
+    SD.remove("/failures/falhas.csv");
+    return 1;
+    }
 
+/*
   bool execute(){
     OnDebug(Serial.println("Iniciando backup de arquivos csv.");)
    
@@ -38,7 +50,7 @@ static const String dirNome="/metricas";
     int filesCount = 0;
     int filesUploaded = 0;
 
-    String url = "http://192.168.0.173:3001/iotgateway/backup";
+    String url = "http://146.190.171.0:3001/iotgateway/backup";
     File entry;
     while(entry = dir.openNextFile()){        
       OnDebug(Serial.print("Arquivo encontrado: ");
@@ -53,7 +65,7 @@ static const String dirNome="/metricas";
     Serial.print("Total de arquivos:");
     Serial.println(filesCount);)
     return 1;
-  }
+  }*/
 
   
 

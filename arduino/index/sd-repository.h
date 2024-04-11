@@ -23,6 +23,6 @@ void storeMeasurement(String directory, String fileName, const char *payload);
 // Adicion uma nova linha de metricas
 void storeLog(const char *payload);
 
-
+void readFile(fs::FS &fs, const String& path, String &data);
 
 

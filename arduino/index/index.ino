@@ -130,6 +130,11 @@ void setup() {
   }
 
   startTime = millis();
+
+  String up;
+  readFile(SD,"/updated",up);
+  doneSendingBackup = (up.toInt()==(timestamp / 3600));
+  
 }
 
 void loop() {
@@ -148,6 +153,7 @@ void loop() {
     if(!doneSendingBackup) {
       BK::execute();
       doneSendingBackup = true;
+      createFile(SD, "/updated", String(timestamp / 3600).c_str());
     }
   }
   else { doneSendingBackup = false;}
@@ -214,15 +220,19 @@ void loop() {
   // Apresentação
   parseData();
   //Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); 
-  //Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
+  Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
 
-  // Armazenamento local
-  OnDebug(Serial.println("\n Gravando em disco:");)
-  storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
+
 
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
   bool measurementSent = TLM::sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
+  if(!measurementSent)
+    storeMeasurement("/failures", "falhas.csv", metricsCsvOutput);
+
+  // Armazenamento local
+  OnDebug(Serial.println("\n Gravando em disco:");)
+  storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
 
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
