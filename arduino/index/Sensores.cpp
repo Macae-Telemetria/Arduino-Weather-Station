@@ -22,6 +22,7 @@ unsigned long smallestDeltatime=4294967295;
 unsigned int gustIndex = 0;  
 unsigned int previousCounter= 0;
 Sensors sensors;
+int rps[20]{0};
 
 void resetSensors(){
   rainCounter = 0;
@@ -112,7 +113,7 @@ void BMPRead(float& press)
   }
 }
 
-int rps[20]{0};
+
 
 void WindGustRead(unsigned int now)
 {
