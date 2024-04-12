@@ -1,6 +1,6 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
-// Versão: 1.7.0 Wind-gust is now 3 second average;
+// Versão: 1.7.5 adjustments;
 //.........................................................................................................................
 
 #include "constants.h"
@@ -15,18 +15,15 @@
 #include <vector>
 #include <rtc_wdt.h>
 
-// -- WATCH-DOG
-#define WDT_TIMEOUT 100000   
+#define WDT_TIMEOUT 150000 // -- WATCH-DOG
+#define FIRMWARE_VERSION 1.8
 
-// Pluviometro
-extern unsigned long lastPVLImpulseTime;
+extern unsigned long lastPVLImpulseTime; // Pluviometro
 extern unsigned int rainCounter;
-
-// Anemometro (Velocidade do vento)
-extern unsigned long lastVVTImpulseTime;
+extern unsigned long lastVVTImpulseTime; // Anemometro (Velocidade do vento)
 extern float anemometerCounter;
-extern unsigned long smallestDeltatime;
 extern int rps[20];
+
 // Sensors
 extern Sensors sensors;
 
@@ -50,7 +47,6 @@ void watchdogRTC()
     rtc_wdt_disable();
     rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
     rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT); // timeout rtd_wdt 10000ms.
-    
     rtc_wdt_enable();           //Start the RTC WDT timer
     rtc_wdt_protect_on();       //Enable RTC WDT write protection
 }
@@ -74,10 +70,8 @@ void setup() {
 
   logIt("\nIniciando cartão SD");
   
-
   initSdCard();
   
-
   logIt("\nCriando diretorios padrões");
   createDirectory("/metricas");
   createDirectory("/logs");
@@ -140,12 +134,8 @@ void loop() {
 
   convertTimeToLocaleDate(timestamp);
 
-  rainCounter = 0;
-  anemometerCounter = 0;
+  resetSensors();
 
-  smallestDeltatime = 4294967295;
-  memset(rps,0,sizeof(rps));
-  windGustReset();
   do {
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
@@ -184,7 +174,7 @@ void loop() {
   Data.wind_dir = getWindDir();
   Data.rain_acc = rainCounter * VOLUME_PLUVIOMETRO;
   Data.wind_gust  = 3.052f /3.0f* ANEMOMETER_CIRC *findMax(rps,sizeof(rps)/sizeof(int));
-  Data.wind_speed = 3.052 * (ANEMOMETER_CIRC * anemometerCounter) / (INTERVAL / 1000.0); // m/s
+  Data.wind_speed = 3.052 * (ANEMOMETER_CIRC * anemometerCounter) / (config.interval / 1000.0); // m/s
   
   DHTRead(Data.humidity, Data.temperature);
   BMPRead(Data.pressure);

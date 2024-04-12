@@ -23,6 +23,15 @@ unsigned int gustIndex = 0;
 unsigned int previousCounter= 0;
 Sensors sensors;
 
+void resetSensors(){
+  rainCounter = 0;
+  anemometerCounter = 0;
+  smallestDeltatime = 4294967295;
+  gustIndex=0; 
+  previousCounter = 0;
+  memset(rps,0,sizeof(rps));
+}
+
 void setupSensors(){
   // Inciando DHT
   Serial.println("Iniciando DHT");
