@@ -14,9 +14,9 @@
 #include <string>
 #include <vector>
 #include <rtc_wdt.h>
+#include "OTA.h"
 
 #define WDT_TIMEOUT 150000 // -- WATCH-DOG
-#define FIRMWARE_VERSION 1.8
 
 extern unsigned long lastPVLImpulseTime; // Pluviometro
 extern unsigned int rainCounter;
@@ -120,6 +120,8 @@ void setup() {
   }
 
   startTime = millis();
+
+  //OTA::setUpdateUrl(String url);
 }
 
 void loop() {
@@ -129,6 +131,7 @@ void loop() {
   rtc_wdt_feed();
   // -- WATCH-DOG
 
+  //OTA::onUpdate(unsigned long timeNow, unsigned long interval);
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
 
