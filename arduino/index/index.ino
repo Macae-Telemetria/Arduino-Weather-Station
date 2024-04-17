@@ -156,6 +156,7 @@ void loop() {
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
+    client2.loopMqtt();
     WindGustRead(now);
     if(ceil(timeRemaining % 5000) != 0) continue;
 
@@ -175,7 +176,8 @@ void loop() {
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
       healthCheck.isMqttConnected = client1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
     }
-    client2.loopMqtt();
+    if(!client2.loopMqtt())
+      client2.connectMqtt("\n  - MQTT", config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
 
     // Atualizando BLE advertsting value
     BLE::updateValue(HEALTH_CHECK_UUID, ("HC: " + String(hcCsv)).c_str());
@@ -208,7 +210,7 @@ void loop() {
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
   bool measurementSent = client1.sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
-
+  client2.sendMeasurementToMqtt((String(config.station_name)+String("/measurement")).c_str(), metricsjsonOutput);
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
   Serial.printf("\n >> PROXIMA ITERAÇÃO\n");
@@ -240,20 +242,25 @@ int bluetoothController(const char *uid, const std::string &content) {
 }
 
 void caubeque(char* topic, byte* payload, unsigned int length) {
-  if (1) {
-    Serial.println("Received OTA update trigger");
-    // Start OTA update process
-    // Convert payload to a String
-    String payloadString = "";
-    for (int i = 0; i < length; i++) {
-      payloadString += (char)payload[i];
-    }
-
-    // Print the payload
-    Serial.print("Payload: ");
-    Serial.println(payloadString);
-    OTA::update(payloadString);
+  Serial.print("\nPayload: ");
+  for (int i = 0; i < length; i++) {
+  Serial.write((char)payload[i]);
   }
+  Serial.write('\n');
+  if(strncmp((char*)payload, "restart", strlen("restart")) == 0)
+  {
+    logIt("Reiniciando Arduino a força;", true);
+    delay(1200);
+    ESP.restart();
+  }
+
+  char prefix[] = "http://";
+  if (strncmp((char*)payload, prefix, strlen(prefix)) == 0) {
+    Serial.println("Received OTA update trigger");
+    OTA::update(String((const char*)payload,length));
+  }
+
+  client2.sendMeasurementToMqtt((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion );
 }
 
 

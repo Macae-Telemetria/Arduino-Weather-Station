@@ -5,7 +5,7 @@
 
 
 
-void OTA::update(String url) {
+void OTA::update(const String& url) {
   Serial.println("Starting firmware update...");
   
   HTTPClient http;

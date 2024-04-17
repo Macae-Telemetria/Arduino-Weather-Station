@@ -7,7 +7,7 @@
 
 class OTA {
 public:
-  static void update(String url);
+  static void update(const String& url);
 
 };
 

@@ -1,0 +1,222 @@
+#include <SD.h>
+#include <sd_defines.h>
+#include <sd_diskio.h>
+
+#pragma once
+
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+
+
+const int chipSelectPin = 32;
+const int mosiPin = 23;
+const int misoPin = 27;
+const int clockPin = 25;
+const int RETRY_INTERVAL = 5000;
+
+void SD_BLINK(int interval)
+{
+  for(int i=0; i<interval/500;i++){
+    digitalWrite(LED2,i%2);
+    delay(500+((i%2==0) && (i%3>0))*1000);
+}
+}
+
+// Inicia leitura cartão SD
+void initSdCard(){
+  SPI.begin(clockPin, misoPin, mosiPin);
+  while(!SD.begin(chipSelectPin, SPI)) {
+    Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);
+    SD_BLINK(2000);}
+
+  Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");
+}
+
+// Adicionar novo diretorio
+void createDirectory(const char * directory){
+  Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);
+  if (!SD.exists(directory)) {
+    if (SD.mkdir(directory)) {
+      Serial.printf("\n     - Diretorio criado com sucesso!");
+    } else {
+      Serial.printf("\n     - Falha ao criar diretorio.");
+    }
+    return;
+  }
+  Serial.printf("\n     - Diretorio já existe.");
+}
+
+bool parseConfigString(const char* configString, Config& config) {
+    const char* delimiter = "\t";
+    char* configCopy=(char*)configString;
+
+    char* token = strtok(configCopy, delimiter);
+    if (token == nullptr) {
+        return false; // Error: empty string
+    }
+
+
+    while (token != nullptr) {
+        char* colon = strchr(token, ':');
+        if (colon != nullptr) {
+            *colon = '\0'; // Null terminate to separate variable name and value
+            const char* varName = token;
+            const char* varValue = colon + 1; // Move past the colon
+
+
+            if (strcmp(varName, "STATION_UID") == 0) {
+                strcpy(config.station_uid, varValue);
+            }
+            else if (strcmp(varName, "STATION_NAME") == 0) {
+                strcpy(config.station_name, varValue);
+            }
+            else if (strcmp(varName, "WIFI_SSID") == 0) {
+                strcpy(config.wifi_ssid, varValue);
+            }
+            else if (strcmp(varName, "WIFI_PASSWORD") == 0) {
+                strcpy(config.wifi_password, varValue);
+            }
+            else if (strcmp(varName, "MQTT_SERVER") == 0) {
+                strcpy(config.mqtt_server, varValue);
+            }
+            else if (strcmp(varName, "MQTT_USERNAME") == 0) {
+                strcpy(config.mqtt_username, varValue);
+            }
+            else if (strcmp(varName, "MQTT_PASSWORD") == 0) {
+                strcpy(config.mqtt_password, varValue);
+            }
+            else if (strcmp(varName, "MQTT_TOPIC") == 0) {
+                strcpy(config.mqtt_topic, varValue);
+            }
+            else if (strcmp(varName, "MQTT_PORT") == 0) {
+                config.mqtt_port = atoi(varValue);
+            }
+            else if (strcmp(varName, "INTERVAL") == 0) {
+                config.interval = atoi(varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_SERVER") == 0) {
+                strcpy(config.mqtt_hostV2_server, varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_USERNAME") == 0) {
+                strcpy(config.mqtt_hostV2_username, varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_PASSWORD") == 0) {
+                strcpy(config.mqtt_hostV2_password, varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_PORT") == 0) {
+                config.mqtt_hostV2_port = atoi(varValue);
+            } // Add other variable assignments as needed
+        }
+        else {
+            // Handle case where token doesn't contain a colon
+        }
+        token = strtok(NULL, delimiter);
+    }
+    return true;
+}
+
+char bufferString[450];
+void decryptAndPrintFile(const char* filename, const char* key, size_t key_len) {
+    File dataFile = SD.open(filename, "rb");
+    if (dataFile) {
+        size_t buffer_len = 0;
+        while (dataFile.available() && buffer_len < sizeof(bufferString) - 1) {
+            bufferString[buffer_len] = dataFile.read()^ key[buffer_len % key_len];
+            buffer_len++;
+        }
+        bufferString[buffer_len] = '\0';
+        dataFile.close();
+
+    } else {
+        Serial.println("Error opening file.");
+    }
+}
+
+// Carrega arquivo de configuração inicial
+void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::string& configJson) {
+  Serial.printf("\n - Carregando variáveis de ambiente");
+
+  SPI.begin(clockPin, misoPin, mosiPin);
+
+  int attemptCount = 0;
+  bool success = false;
+  while (success == false) {
+
+    Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
+
+    if (SD.begin(chipSelectPin, SPI)){
+      const char* key= "GPICM";
+      decryptAndPrintFile("/encrypted.txt", key, strlen(key));
+      parseConfigString(bufferString, config);
+      success=true;
+      continue;
+    } else {
+      Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
+    }
+
+    Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
+    attemptCount++;
+    SD_BLINK(RETRY_INTERVAL);
+
+  }
+
+  Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
+  Serial.printf("\n - %s", configJson.c_str());
+  Serial.println();
+  return;
+}
+
+void createFile(fs::FS &fs, const char * path, const char * message){
+    Serial.printf("Salvando json no cartao SD: %s\n.", path); 
+
+    File file = fs.open(path, FILE_WRITE);
+    if(!file){
+        Serial.println(" - Falha ao encontrar cartão SD.");
+        return;
+    }
+    if(file.print(message)){
+        Serial.println(" - sucesso.");
+    } else {
+        Serial.println("- Falha ao salvar.");
+    }
+    file.close();
+}
+
+void appendFile(fs::FS &fs, const char * path, const char * message){
+    Serial.printf(" - Salvando dados no cartao SD: %s\n", path); 
+
+    File file = fs.open(path, FILE_APPEND);
+    if(!file){
+        Serial.println(" - Falha ao encontrar cartão SD");
+        return;
+    }
+    if(file.print(message)){
+        Serial.println(" - Nova linha salva com sucesso.");
+    } else {
+        Serial.println(" - Falha ao salvar nova linha");
+    }
+    file.close();
+}
+
+
+void storeMeasurement(String directory, String fileName, const char *payload){
+  String path = directory + "/" + fileName + ".txt";
+  if (!SD.exists(directory)) {
+    if (SD.mkdir(directory)) {
+      Serial.println(" - Diretorio criado com sucesso!");
+    } else {
+      Serial.println(" - Falha ao criar diretorio de metricas.");
+    }
+  }
+  appendFile(SD, path.c_str(), payload);
+}
+
+
+// Adicion uma nova linha de metricas
+void storeLog(const char *payload){
+  String path = "/logs/boot.txt";
+  File file = SD.open(path, FILE_APPEND);
+  if (file) { file.print(payload); }
+  file.close();
+} 

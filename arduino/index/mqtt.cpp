@@ -15,7 +15,7 @@
   {
     bool sent = (m_Client->publish(topic, payload, true));
     if (sent){
-      Serial.println("  - MQTT broker: Message publised [" + String(topic) + "]: ");
+      Serial.print("  - MQTT broker: Message publised ["); Serial.print(topic); Serial.println( "]: ");Serial.println(payload);
     } else {
       Serial.println("  - MQTT: Não foi possivel enviar");
     }
