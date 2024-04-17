@@ -1,4 +1,3 @@
-
 #include "OTA.h"
 #include <HTTPClient.h>
 #include <Update.h>
@@ -44,5 +43,3 @@ void OTA::update(const String& url) {
 
   http.end();
 }
-
-

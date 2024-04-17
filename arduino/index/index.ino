@@ -1,6 +1,6 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
-// Versão: 1.7.5 adjustments;
+// Versão: 1.8 OTA;
 //.........................................................................................................................
 
 #include "constants.h"
@@ -28,17 +28,14 @@ extern int rps[20];
 // Sensors
 extern Sensors sensors;
 
-
-#define STRINGIZE(x) #x
-#define EXPAND_AND_STRINGIZE(x) STRINGIZE(x)
 // globals
 long startTime;
 int timeRemaining=0;
 std::string jsonConfig;
 String formatedDateString = "";
-struct HealthCheck healthCheck = {EXPAND_AND_STRINGIZE(FIRMWARE_VERSION), 0, false, false, 0, 0};
-MQTT client1;
-MQTT client2;
+struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
+MQTT mqqtClient1;
+MQTT mqqtClient2;
 
 void logIt(const std::string &message, bool store = false){
   Serial.print(message.c_str());
@@ -46,8 +43,6 @@ void logIt(const std::string &message, bool store = false){
     storeLog(message.c_str());
   }
 }
-
-void caubeque(char* topic, byte* payload, unsigned int length);
 
 void watchdogRTC()
 {
@@ -100,9 +95,9 @@ void setup() {
   connectNtp("  - NTP");
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
-  client1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
-  client2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
-  client2.setCallback(caubeque);
+  mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+  mqqtClient2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
+  mqqtClient2.setCallback(caubeque);
 
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
@@ -123,18 +118,12 @@ void setup() {
   // -- WATCH-DOG
   watchdogRTC();
 
-  //Yellow Blink
   for(int i=0; i<7; i++) {
     digitalWrite(LED1,i%2);
     delay(400);
   }
 
   startTime = millis();
-  //config.IOT_GATEWAY_HOST = http://146.190.171.
-  //config.iotGatewayHost = http://146.190.171.
-
-
-
 }
 
 void loop() {
@@ -143,7 +132,6 @@ void loop() {
   // -- WATCH-DOG
   rtc_wdt_feed();
   // -- WATCH-DOG
-
 
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
@@ -156,7 +144,7 @@ void loop() {
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
-    client2.loopMqtt();
+    mqqtClient2.loopMqtt();
     WindGustRead(now);
     if(ceil(timeRemaining % 5000) != 0) continue;
 
@@ -164,7 +152,7 @@ void loop() {
     healthCheck.timestamp = timestamp;
     healthCheck.isWifiConnected = WiFi.status() == WL_CONNECTED;
     healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
-    healthCheck.isMqttConnected = client1.loopMqtt();
+    healthCheck.isMqttConnected = mqqtClient1.loopMqtt();
     healthCheck.timeRemaining = timeRemaining;
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
@@ -174,10 +162,10 @@ void loop() {
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
-      healthCheck.isMqttConnected = client1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+      healthCheck.isMqttConnected = mqqtClient1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
     }
-    if(!client2.loopMqtt())
-      client2.connectMqtt("\n  - MQTT", config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
+    if(!mqqtClient2.loopMqtt())
+      mqqtClient2.connectMqtt("\n  - MQTT", config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
 
     // Atualizando BLE advertsting value
     BLE::updateValue(HEALTH_CHECK_UUID, ("HC: " + String(hcCsv)).c_str());
@@ -209,8 +197,8 @@ void loop() {
 
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
-  bool measurementSent = client1.sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
-  client2.sendMeasurementToMqtt((String(config.station_name)+String("/measurement")).c_str(), metricsjsonOutput);
+  bool measurementSent = mqqtClient1.publish(config.mqtt_topic, metricsjsonOutput);
+
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
   Serial.printf("\n >> PROXIMA ITERAÇÃO\n");
@@ -241,12 +229,13 @@ int bluetoothController(const char *uid, const std::string &content) {
   return 0;
 }
 
-void caubeque(char* topic, byte* payload, unsigned int length) {
+void mqttSubCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("\nPayload: ");
   for (int i = 0; i < length; i++) {
-  Serial.write((char)payload[i]);
+    Serial.write((char)payload[i]);
   }
   Serial.write('\n');
+
   if(strncmp((char*)payload, "restart", strlen("restart")) == 0)
   {
     logIt("Reiniciando Arduino a força;", true);
@@ -260,7 +249,7 @@ void caubeque(char* topic, byte* payload, unsigned int length) {
     OTA::update(String((const char*)payload,length));
   }
 
-  client2.sendMeasurementToMqtt((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion );
+  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion );
 }
 
 
