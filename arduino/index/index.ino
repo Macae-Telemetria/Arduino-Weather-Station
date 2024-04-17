@@ -101,7 +101,7 @@ void setup() {
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
   client1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
-  client2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_host_password, config.station_name);
+  client2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
   client2.setCallback(caubeque);
 
   logIt("\n\n1.5 Iniciando controllers;", true);
