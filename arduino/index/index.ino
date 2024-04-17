@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <rtc_wdt.h>
+#include "mqtt.h"
 #include "OTA.h"
 
 #define WDT_TIMEOUT 150000 // -- WATCH-DOG
@@ -27,12 +28,17 @@ extern int rps[20];
 // Sensors
 extern Sensors sensors;
 
+
+#define STRINGIZE(x) #x
+#define EXPAND_AND_STRINGIZE(x) STRINGIZE(x)
 // globals
 long startTime;
 int timeRemaining=0;
 std::string jsonConfig;
 String formatedDateString = "";
-struct HealthCheck healthCheck = {"1.7.0", 0, false, false, 0, 0};
+struct HealthCheck healthCheck = {EXPAND_AND_STRINGIZE(FIRMWARE_VERSION), 0, false, false, 0, 0};
+MQTT client1;
+MQTT client2;
 
 void logIt(const std::string &message, bool store = false){
   Serial.print(message.c_str());
@@ -40,6 +46,8 @@ void logIt(const std::string &message, bool store = false){
     storeLog(message.c_str());
   }
 }
+
+void caubeque(char* topic, byte* payload, unsigned int length);
 
 void watchdogRTC()
 {
@@ -92,7 +100,9 @@ void setup() {
   connectNtp("  - NTP");
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
-  setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+  client1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+  client2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_host_password, config.station_name);
+  client2.setCallback(caubeque);
 
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
@@ -120,8 +130,11 @@ void setup() {
   }
 
   startTime = millis();
+  //config.IOT_GATEWAY_HOST = http://146.190.171.
+  //config.iotGatewayHost = http://146.190.171.
 
-  //OTA::setUpdateUrl(String url);
+
+
 }
 
 void loop() {
@@ -131,7 +144,7 @@ void loop() {
   rtc_wdt_feed();
   // -- WATCH-DOG
 
-  //OTA::onUpdate(unsigned long timeNow, unsigned long interval);
+
   timeClient.update();
   int timestamp = timeClient.getEpochTime();
 
@@ -150,7 +163,7 @@ void loop() {
     healthCheck.timestamp = timestamp;
     healthCheck.isWifiConnected = WiFi.status() == WL_CONNECTED;
     healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
-    healthCheck.isMqttConnected = mqttClient.loop();
+    healthCheck.isMqttConnected = client1.loopMqtt();
     healthCheck.timeRemaining = timeRemaining;
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
@@ -160,8 +173,9 @@ void loop() {
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
-      healthCheck.isMqttConnected = connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+      healthCheck.isMqttConnected = client1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
     }
+    client2.loopMqtt();
 
     // Atualizando BLE advertsting value
     BLE::updateValue(HEALTH_CHECK_UUID, ("HC: " + String(hcCsv)).c_str());
@@ -193,7 +207,7 @@ void loop() {
 
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
-  bool measurementSent = sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
+  bool measurementSent = client1.sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
 
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
@@ -224,6 +238,24 @@ int bluetoothController(const char *uid, const std::string &content) {
   }
   return 0;
 }
+
+void caubeque(char* topic, byte* payload, unsigned int length) {
+  if (1) {
+    Serial.println("Received OTA update trigger");
+    // Start OTA update process
+    // Convert payload to a String
+    String payloadString = "";
+    for (int i = 0; i < length; i++) {
+      payloadString += (char)payload[i];
+    }
+
+    // Print the payload
+    Serial.print("Payload: ");
+    Serial.println(payloadString);
+    OTA::update(payloadString);
+  }
+}
+
 
 void convertTimeToLocaleDate(long timestamp) {
   struct tm *ptm = gmtime((time_t *)&timestamp);
