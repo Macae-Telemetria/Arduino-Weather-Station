@@ -8,13 +8,13 @@ void OTA::update(const String& url) {
   HTTPClient http;
 
   if (!http.begin(url)) {
-    Serial.printf("Não foi possivel conectar.")
+    Serial.printf("Não foi possivel conectar.");
     return;
   } 
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("Servidor indisponivel.")
+    Serial.printf("Servidor indisponivel.");
     http.end();
     return;
   } 

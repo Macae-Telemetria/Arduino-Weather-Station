@@ -97,8 +97,8 @@ void setup() {
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
   mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
   mqqtClient2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
-  mqqtClient2.setCallback(caubeque);
-
+  mqqtClient2.setCallback(mqttSubCallback);
+  mqqtClient2.setBufferSize(512);
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
 
@@ -229,12 +229,19 @@ int bluetoothController(const char *uid, const std::string &content) {
   return 0;
 }
 
-void mqttSubCallback(char* topic, byte* payload, unsigned int length) {
+void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
   Serial.print("\nPayload: ");
   for (int i = 0; i < length; i++) {
     Serial.write((char)payload[i]);
   }
   Serial.write('\n');
+
+  char* content = new char[length+1];
+  memcpy(content,payload,length);
+  content[length]=0;
+  Serial.println(content);
+  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),content );
+  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion );
 
   if(strncmp((char*)payload, "restart", strlen("restart")) == 0)
   {
@@ -249,7 +256,7 @@ void mqttSubCallback(char* topic, byte* payload, unsigned int length) {
     OTA::update(String((const char*)payload,length));
   }
 
-  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion );
+  delete content;
 }
 
 

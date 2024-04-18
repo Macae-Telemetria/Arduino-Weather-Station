@@ -11,7 +11,7 @@
     delete m_WifiClient;
     delete m_Client;
   }
-  bool MQTT::sendMeasurementToMqtt(const char *topic, const char *payload)
+  bool MQTT::publish(const char *topic, const char *payload)
   {
     bool sent = (m_Client->publish(topic, payload, true));
     if (sent){
@@ -55,6 +55,10 @@
   
   bool MQTT::loopMqtt(){
     return m_Client->loop();
+  }
+
+  void MQTT::setBufferSize(int size){
+      m_Client->setBufferSize(size);
   }
 
   void MQTT::setCallback(void (*callback)(char*, unsigned char*, unsigned int)){
