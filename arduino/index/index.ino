@@ -34,6 +34,9 @@ int timeRemaining=0;
 std::string jsonConfig;
 String formatedDateString = "";
 struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
+
+// -- MQTT
+const char* softwareReleaseMqttTopic;
 MQTT mqqtClient1;
 MQTT mqqtClient2;
 
@@ -96,9 +99,12 @@ void setup() {
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
   mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
-  mqqtClient2.setupMqtt("- MQTT",config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
+  
+  softwareReleaseMqttTopic = (String("software-release/") + config.station_name).c_str();
+  while(!mqqtClient2.setupMqtt("- MQTT", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic));
   mqqtClient2.setCallback(mqttSubCallback);
   mqqtClient2.setBufferSize(512);
+
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
 
@@ -164,8 +170,9 @@ void loop() {
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
       healthCheck.isMqttConnected = mqqtClient1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
     }
-    if(!mqqtClient2.loopMqtt())
-      mqqtClient2.connectMqtt("\n  - MQTT", config.mqtt_hostV2_username, config.mqtt_hostV2_password, config.station_name);
+    if(!mqqtClient2.loopMqtt()) {
+      mqqtClient2.connectMqtt("\n  - MQTT", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic);
+    }
 
     // Atualizando BLE advertsting value
     BLE::updateValue(HEALTH_CHECK_UUID, ("HC: " + String(hcCsv)).c_str());
@@ -236,27 +243,33 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
   }
   Serial.write('\n');
 
+  char topicPattern[] = "software-release/";
+  // softwareReleaseMqttTopic
+  if (strncmp(topic, topicPattern, strlen(topicPattern)) == 0) {
+    Serial.println("Chegou uma nova versão de software");
+    Serial.println("Received OTA update trigger");
+
+    OTA::update(String((const char*)payload,length));
+  }
+  
+  /* 
   char* content = new char[length+1];
   memcpy(content,payload,length);
   content[length]=0;
   Serial.println(content);
   mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),content );
-  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion );
-
-  if(strncmp((char*)payload, "restart", strlen("restart")) == 0)
-  {
+  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion ); 
+  
+  // -- Para reiniciar
+  if(strncmp((char*)payload, "restart", strlen("restart")) == 0){
     logIt("Reiniciando Arduino a força;", true);
     delay(1200);
     ESP.restart();
-  }
-
-  char prefix[] = "http://";
-  if (strncmp((char*)payload, prefix, strlen(prefix)) == 0) {
-    Serial.println("Received OTA update trigger");
-    OTA::update(String((const char*)payload,length));
-  }
-
   delete content;
+  } 
+  */
+
+
 }
 
 

@@ -81,7 +81,7 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           strlcpy(config.mqtt_hostV2_server, doc["MQTT_HOSTV2_SERVER"] | "", sizeof(config.mqtt_hostV2_server));
           strlcpy(config.mqtt_hostV2_username, doc["MQTT_HOSTV2_USERNAME"] | "", sizeof(config.mqtt_hostV2_username));
           strlcpy(config.mqtt_hostV2_password, doc["MQTT_HOSTV2_PASSWORD"] | "", sizeof(config.mqtt_hostV2_password));
-          config.mqtt_hostV2_port = doc["MQTT_HOSTV2_PORT"] | 1883;
+          config.mqtt_hostV2_port = doc["MQTT_HOSTV2_PORT"] | 1884;
           //config.mqtt_host_server, config.mqtt_host_port, config.mqtt_host_username, config.mqtt_host_password,
           //strlcpy(config.iotGatewayHost, doc["IOTGATEWAYHOST"] | "", sizeof(config.iotGatewayHost));
           file.close();

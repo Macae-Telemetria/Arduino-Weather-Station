@@ -49,7 +49,6 @@
     Serial.println(mqtt_password);
     Serial.println(mqtt_topic);
     m_Client->setServer(mqtt_server, mqtt_port);
-    // m_Client->setCallback(callback);
     return connectMqtt(contextName, mqtt_username, mqtt_password, mqtt_topic);
   }
   
