@@ -8,7 +8,6 @@
 #include "SD.h"
 #include "SPI.h"
 
-#include <ArduinoJson.h>
 
 const int chipSelectPin = 32;
 const int mosiPin = 23;
@@ -48,6 +47,92 @@ void createDirectory(const char * directory){
   Serial.printf("\n     - Diretorio já existe.");
 }
 
+bool parseConfigString(const char* configString, Config& config) {
+    const char* delimiter = "\t";
+    char* configCopy=(char*)configString;
+
+    char* token = strtok(configCopy, delimiter);
+    if (token == nullptr) {
+        return false; // Error: empty string
+    }
+
+
+    while (token != nullptr) {
+        char* colon = strchr(token, ':');
+        if (colon != nullptr) {
+            *colon = '\0'; // Null terminate to separate variable name and value
+            const char* varName = token;
+            const char* varValue = colon + 1; // Move past the colon
+
+
+            if (strcmp(varName, "STATION_UID") == 0) {
+                strcpy(config.station_uid, varValue);
+            }
+            else if (strcmp(varName, "STATION_NAME") == 0) {
+                strcpy(config.station_name, varValue);
+            }
+            else if (strcmp(varName, "WIFI_SSID") == 0) {
+                strcpy(config.wifi_ssid, varValue);
+            }
+            else if (strcmp(varName, "WIFI_PASSWORD") == 0) {
+                strcpy(config.wifi_password, varValue);
+            }
+            else if (strcmp(varName, "MQTT_SERVER") == 0) {
+                strcpy(config.mqtt_server, varValue);
+            }
+            else if (strcmp(varName, "MQTT_USERNAME") == 0) {
+                strcpy(config.mqtt_username, varValue);
+            }
+            else if (strcmp(varName, "MQTT_PASSWORD") == 0) {
+                strcpy(config.mqtt_password, varValue);
+            }
+            else if (strcmp(varName, "MQTT_TOPIC") == 0) {
+                strcpy(config.mqtt_topic, varValue);
+            }
+            else if (strcmp(varName, "MQTT_PORT") == 0) {
+                config.mqtt_port = atoi(varValue);
+            }
+            else if (strcmp(varName, "INTERVAL") == 0) {
+                config.interval = atoi(varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_SERVER") == 0) {
+                strcpy(config.mqtt_hostV2_server, varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_USERNAME") == 0) {
+                strcpy(config.mqtt_hostV2_username, varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_PASSWORD") == 0) {
+                strcpy(config.mqtt_hostV2_password, varValue);
+            }
+            else if (strcmp(varName, "MQTT_HOSTV2_PORT") == 0) {
+                config.mqtt_hostV2_port = atoi(varValue);
+            } // Add other variable assignments as needed
+        }
+        else {
+            // Handle case where token doesn't contain a colon
+        }
+        token = strtok(NULL, delimiter);
+    }
+    return true;
+}
+
+char bufferString[450];
+void decryptAndPrintFile(const char* filename, const char* key, size_t key_len) {
+    File dataFile = SD.open(filename, "rb");
+    if (dataFile) {
+        size_t buffer_len = 0;
+        while (dataFile.available() && buffer_len < sizeof(bufferString) - 1) {
+            bufferString[buffer_len] = dataFile.read()^ key[buffer_len % key_len];
+            buffer_len++;
+        }
+        bufferString[buffer_len] = '\0';
+        dataFile.close();
+
+    } else {
+        Serial.println("Error opening file.");
+    }
+}
+
 // Carrega arquivo de configuração inicial
 void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::string& configJson) {
   Serial.printf("\n - Carregando variáveis de ambiente");
@@ -61,38 +146,11 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
     Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
 
     if (SD.begin(chipSelectPin, SPI)){
-      File file = fs.open(filename);
-      StaticJsonDocument<512> doc;
-
-      if (file){
-        DeserializationError error = deserializeJson(doc, file);
-        if (!error){
-          strlcpy(config.station_uid, doc["STATION_UID"] | "", sizeof(config.station_uid));
-          strlcpy(config.station_name, doc["STATION_NAME"] | "", sizeof(config.station_name));
-          strlcpy(config.wifi_ssid, doc["WIFI_SSID"] | "", sizeof(config.wifi_ssid));
-          strlcpy(config.wifi_password, doc["WIFI_PASSWORD"] | "", sizeof(config.wifi_password));
-          strlcpy(config.mqtt_server, doc["MQTT_SERVER"] | "", sizeof(config.mqtt_server));
-          strlcpy(config.mqtt_username, doc["MQTT_USERNAME"] | "", sizeof(config.mqtt_username));
-          strlcpy(config.mqtt_password, doc["MQTT_PASSWORD"] | "", sizeof(config.mqtt_password));
-          strlcpy(config.mqtt_topic, doc["MQTT_TOPIC"] | "", sizeof(config.mqtt_topic));
-          config.mqtt_port = doc["MQTT_PORT"] | 1883;
-          config.interval = doc["INTERVAL"] | 60000;
-
-          strlcpy(config.mqtt_hostV2_server, doc["MQTT_HOSTV2_SERVER"] | "", sizeof(config.mqtt_hostV2_server));
-          strlcpy(config.mqtt_hostV2_username, doc["MQTT_HOSTV2_USERNAME"] | "", sizeof(config.mqtt_hostV2_username));
-          strlcpy(config.mqtt_hostV2_password, doc["MQTT_HOSTV2_PASSWORD"] | "", sizeof(config.mqtt_hostV2_password));
-          config.mqtt_hostV2_port = doc["MQTT_HOSTV2_PORT"] | 1884;
-          //config.mqtt_host_server, config.mqtt_host_port, config.mqtt_host_username, config.mqtt_host_password,
-          //strlcpy(config.iotGatewayHost, doc["IOTGATEWAYHOST"] | "", sizeof(config.iotGatewayHost));
-          file.close();
-          success = true;
-          serializeJson(doc, configJson);
-          continue;
-        }
-        Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");
-        Serial.println(error.c_str());
-      }
-      Serial.printf("\n - [ ERROR ] Arquivo de configuração não encontrado\n");
+      const char* key= "GPICM";
+      decryptAndPrintFile("/encrypted.txt", key, strlen(key));
+      parseConfigString(bufferString, config);
+      success=true;
+      continue;
     } else {
       Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
     }

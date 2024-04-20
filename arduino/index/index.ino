@@ -1,6 +1,6 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
-// Versão: 1.7.5 adjustments;
+// Versão: 1.8 OTA;
 //.........................................................................................................................
 
 #include "constants.h"
@@ -14,9 +14,10 @@
 #include <string>
 #include <vector>
 #include <rtc_wdt.h>
+#include "mqtt.h"
+#include "OTA.h"
 
 #define WDT_TIMEOUT 150000 // -- WATCH-DOG
-#define FIRMWARE_VERSION 1.8
 
 extern unsigned long lastPVLImpulseTime; // Pluviometro
 extern unsigned int rainCounter;
@@ -32,7 +33,12 @@ long startTime;
 int timeRemaining=0;
 std::string jsonConfig;
 String formatedDateString = "";
-struct HealthCheck healthCheck = {"1.7.0", 0, false, false, 0, 0};
+struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
+
+// -- MQTT
+String softwareReleaseMqttTopic;
+MQTT mqqtClient1;
+MQTT mqqtClient2;
 
 void logIt(const std::string &message, bool store = false){
   Serial.print(message.c_str());
@@ -92,7 +98,12 @@ void setup() {
   connectNtp("  - NTP");
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
-  setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+  mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+   softwareReleaseMqttTopic =String("software-release/") + String(config.station_name);
+
+  mqqtClient2.setupMqtt("- MQTT2", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
+  mqqtClient2.setCallback(mqttSubCallback);
+  mqqtClient2.setBufferSize(512);
 
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
@@ -113,12 +124,12 @@ void setup() {
   // -- WATCH-DOG
   watchdogRTC();
 
-  //Yellow Blink
   for(int i=0; i<7; i++) {
     digitalWrite(LED1,i%2);
     delay(400);
   }
-
+  const char * hcCsv = parseHealthCheckData(healthCheck, 1);
+  mqqtClient2.publish((String("sys-report/")+String(config.station_name)).c_str(),hcCsv );
   startTime = millis();
 }
 
@@ -137,9 +148,20 @@ void loop() {
   resetSensors();
 
   do {
+  if (Serial.available() > 0) {
+    char command = Serial.read();
+    if (command == 'r' || command == 'R') {
+      Serial.println("Restarting...");
+      delay(100);
+      ESP.restart();
+    }
+  }
+  
+
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
+    mqqtClient2.loopMqtt();
     WindGustRead(now);
     if(ceil(timeRemaining % 5000) != 0) continue;
 
@@ -147,7 +169,7 @@ void loop() {
     healthCheck.timestamp = timestamp;
     healthCheck.isWifiConnected = WiFi.status() == WL_CONNECTED;
     healthCheck.wifiDbmLevel = !healthCheck.isWifiConnected ? 0 : (WiFi.RSSI()) * -1;
-    healthCheck.isMqttConnected = mqttClient.loop();
+    healthCheck.isMqttConnected = mqqtClient1.loopMqtt();
     healthCheck.timeRemaining = timeRemaining;
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
@@ -157,7 +179,10 @@ void loop() {
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
-      healthCheck.isMqttConnected = connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+      healthCheck.isMqttConnected = mqqtClient1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
+    }
+    if(!mqqtClient2.loopMqtt()) {
+      mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
     }
 
     // Atualizando BLE advertsting value
@@ -190,7 +215,7 @@ void loop() {
 
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
-  bool measurementSent = sendMeasurementToMqtt(config.mqtt_topic, metricsjsonOutput);
+  bool measurementSent = mqqtClient1.publish(config.mqtt_topic, metricsjsonOutput);
 
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
@@ -221,6 +246,41 @@ int bluetoothController(const char *uid, const std::string &content) {
   }
   return 0;
 }
+#include <ArduinoJson.h>
+void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
+  char* jsonBuffer = new char[length + 1];
+  memcpy(jsonBuffer, (char*)payload, length);
+  jsonBuffer[length] = '\0';
+  Serial.println(jsonBuffer);
+  Serial.println(topic);
+  DynamicJsonDocument doc(length + 1); // Specify capacity
+  DeserializationError error = deserializeJson(doc, jsonBuffer);
+  Serial.println("executing");
+  // Check for parsing errors
+  if (error) {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.c_str());
+    // Release dynamically allocated memory
+    delete[] jsonBuffer;
+    return;
+  }
+
+  if(strcmp(topic,softwareReleaseMqttTopic.c_str())==0){
+    // Extract the value of the "data" field (assuming it's a string)
+    const char* url = doc["data"];
+
+    // Print the extracted URL
+    Serial.print("URL: ");
+    Serial.println(url);
+    String urlStr(url);
+    OTA::update(urlStr);
+  }
+
+
+  // Release dynamically allocated memory
+  delete[] jsonBuffer;
+}
+
 
 void convertTimeToLocaleDate(long timestamp) {
   struct tm *ptm = gmtime((time_t *)&timestamp);
