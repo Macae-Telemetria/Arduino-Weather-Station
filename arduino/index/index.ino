@@ -128,7 +128,8 @@ void setup() {
     digitalWrite(LED1,i%2);
     delay(400);
   }
-
+  const char * hcCsv = parseHealthCheckData(healthCheck, 1);
+  mqqtClient2.publish((String("sys-report/")+String(config.station_name)).c_str(),hcCsv );
   startTime = millis();
 }
 
