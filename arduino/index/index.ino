@@ -36,7 +36,7 @@ String formatedDateString = "";
 struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
 
 // -- MQTT
-const char* softwareReleaseMqttTopic;
+String softwareReleaseMqttTopic;
 MQTT mqqtClient1;
 MQTT mqqtClient2;
 
@@ -99,9 +99,9 @@ void setup() {
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
   mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
-  
-  softwareReleaseMqttTopic = (String("software-release/") + config.station_name).c_str();
-  while(!mqqtClient2.setupMqtt("- MQTT", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic));
+   softwareReleaseMqttTopic =String("software-release/") + String(config.station_name);
+
+  mqqtClient2.setupMqtt("- MQTT2", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
   mqqtClient2.setCallback(mqttSubCallback);
   mqqtClient2.setBufferSize(512);
 
@@ -147,6 +147,16 @@ void loop() {
   resetSensors();
 
   do {
+  if (Serial.available() > 0) {
+    char command = Serial.read();
+    if (command == 'r' || command == 'R') {
+      Serial.println("Restarting...");
+      delay(100);
+      ESP.restart();
+    }
+  }
+  
+
     unsigned long now = millis();
     timeRemaining = startTime + config.interval - now;
     //calculate
@@ -171,7 +181,7 @@ void loop() {
       healthCheck.isMqttConnected = mqqtClient1.connectMqtt("\n  - MQTT", config.mqtt_username, config.mqtt_password, config.mqtt_topic);
     }
     if(!mqqtClient2.loopMqtt()) {
-      mqqtClient2.connectMqtt("\n  - MQTT", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic);
+      mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
     }
 
     // Atualizando BLE advertsting value
@@ -235,41 +245,39 @@ int bluetoothController(const char *uid, const std::string &content) {
   }
   return 0;
 }
-
+#include <ArduinoJson.h>
 void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
-  Serial.print("\nPayload: ");
-  for (int i = 0; i < length; i++) {
-    Serial.write((char)payload[i]);
+  char* jsonBuffer = new char[length + 1];
+  memcpy(jsonBuffer, (char*)payload, length);
+  jsonBuffer[length] = '\0';
+  Serial.println(jsonBuffer);
+  Serial.println(topic);
+  DynamicJsonDocument doc(length + 1); // Specify capacity
+  DeserializationError error = deserializeJson(doc, jsonBuffer);
+  Serial.println("executing");
+  // Check for parsing errors
+  if (error) {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.c_str());
+    // Release dynamically allocated memory
+    delete[] jsonBuffer;
+    return;
   }
-  Serial.write('\n');
 
-  char topicPattern[] = "software-release/";
-  // softwareReleaseMqttTopic
-  if (strncmp(topic, topicPattern, strlen(topicPattern)) == 0) {
-    Serial.println("Chegou uma nova versão de software");
-    Serial.println("Received OTA update trigger");
+  if(strcmp(topic,softwareReleaseMqttTopic.c_str())==0){
+    // Extract the value of the "data" field (assuming it's a string)
+    const char* url = doc["data"];
 
-    OTA::update(String((const char*)payload,length));
+    // Print the extracted URL
+    Serial.print("URL: ");
+    Serial.println(url);
+    String urlStr(url);
+    OTA::update(urlStr);
   }
-  
-  /* 
-  char* content = new char[length+1];
-  memcpy(content,payload,length);
-  content[length]=0;
-  Serial.println(content);
-  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),content );
-  mqqtClient2.publish((String(config.station_name)+String("/response")).c_str(),healthCheck.softwareVersion ); 
-  
-  // -- Para reiniciar
-  if(strncmp((char*)payload, "restart", strlen("restart")) == 0){
-    logIt("Reiniciando Arduino a força;", true);
-    delay(1200);
-    ESP.restart();
-  delete content;
-  } 
-  */
 
 
+  // Release dynamically allocated memory
+  delete[] jsonBuffer;
 }
 
 
