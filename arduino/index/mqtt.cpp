@@ -29,7 +29,7 @@
     clientId += String(random(0xffff), HEX);
     if (m_Client->connect(clientId.c_str(), mqtt_username, mqtt_password)){
       Serial.printf("%s: Reconectado", contextName);
-      m_Client->subscribe(mqtt_topic);
+      subscribe(mqtt_topic);
       return true;
     }
     Serial.print("failed, rc=");
@@ -56,6 +56,10 @@
     return m_Client->loop();
   }
 
+void MQTT::subscribe(const char* mqtt_topic)
+{
+  m_Client->subscribe(mqtt_topic);
+}
   void MQTT::setBufferSize(int size){
       m_Client->setBufferSize(size);
   }

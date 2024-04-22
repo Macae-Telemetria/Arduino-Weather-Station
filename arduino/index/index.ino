@@ -34,7 +34,7 @@ int timeRemaining=0;
 std::string jsonConfig;
 String formatedDateString = "";
 struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
-
+String output;
 // -- MQTT
 String softwareReleaseMqttTopic;
 MQTT mqqtClient1;
@@ -103,8 +103,10 @@ void setup() {
 
   mqqtClient2.setupMqtt("- MQTT2", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
   mqqtClient2.setCallback(mqttSubCallback);
-  mqqtClient2.setBufferSize(512);
+  mqqtClient2.setBufferSize(550);
+  mqqtClient2.subscribe((String("sys/") + String(config.station_name)).c_str());
 
+  output =(String("sys-report/")+String(config.station_name));
   logIt("\n\n1.5 Iniciando controllers;", true);
   setupSensors();
 
@@ -129,7 +131,7 @@ void setup() {
     delay(400);
   }
   const char * hcCsv = parseHealthCheckData(healthCheck, 1);
-  mqqtClient2.publish((String("sys-report/")+String(config.station_name)).c_str(),hcCsv );
+  mqqtClient2.publish(output.c_str(),hcCsv );
   startTime = millis();
 }
 
@@ -176,6 +178,9 @@ void loop() {
 
     Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));
     Serial.printf("\n  - %s",hcCsv);
+    mqqtClient2.publish(output.c_str(),"Coletando dados, metricas em: " );
+    mqqtClient2.publish(output.c_str(),String(timeRemaining / 1000).c_str() );
+    mqqtClient2.publish(output.c_str(),hcCsv );
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
@@ -194,7 +199,7 @@ void loop() {
   // Computando dados
   
   Serial.printf("\n\n Computando dados ...\n");
-
+  mqqtClient2.publish(output.c_str(),"Computando dados ..." );
   Data.timestamp = timestamp;
   Data.wind_dir = getWindDir();
   Data.rain_acc = rainCounter * VOLUME_PLUVIOMETRO;
@@ -212,11 +217,11 @@ void loop() {
   // Armazenamento local
   Serial.println("\n Gravando em disco:");
   storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
-
+  mqqtClient2.publish(output.c_str(),"Gravando em disco" );
   // Enviando Dados Remotamente
   Serial.println("\n Enviando Resultados:  ");
   bool measurementSent = mqqtClient1.publish(config.mqtt_topic, metricsjsonOutput);
-
+  bool measurementSent2 = mqqtClient2.publish(config.mqtt_topic, metricsjsonOutput);
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
   Serial.printf("\n >> PROXIMA ITERAÇÃO\n");
@@ -265,7 +270,7 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
     return;
   }
 
-  if(strcmp(topic,softwareReleaseMqttTopic.c_str())==0){
+  if(strcmp(topic,softwareReleaseMqttTopic.c_str())==0 && doc.containsKey("data")){
     // Extract the value of the "data" field (assuming it's a string)
     const char* url = doc["data"];
 
@@ -275,6 +280,36 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
     String urlStr(url);
     OTA::update(urlStr);
   }
+
+  if (doc.containsKey("command")){
+    const char* command = doc["command"];
+
+    if (strcmp(command, "reset") == 0) {
+      Serial.println("Executing reset command");
+      mqqtClient2.publish(output.c_str(),"Executing reset command" );
+      ESP.restart();
+      // Perform reset action
+    } else if (strcmp(command, "configure") == 0) {
+      // Execute configure command
+      char buff[550]{0};
+      readFileToCharArray("/config.txt",buff,550);
+      Serial.println(buff);
+      mqqtClient2.publish(output.c_str(),buff);
+      Serial.println("Executing configure command");
+      // Perform configure action
+    }
+    else if (strcmp(command, "setting") == 0) {
+      // Execute configure command
+      const char* content = doc["setting"];
+      Serial.print("conteudo: ");
+      Serial.println(content);
+      mqqtClient2.publish(output.c_str(),content);
+      createFile(SD, "/config.txt", content);
+      Serial.println("Executing setting command");
+      // Perform configure action
+    }
+  }
+  
 
 
   // Release dynamically allocated memory

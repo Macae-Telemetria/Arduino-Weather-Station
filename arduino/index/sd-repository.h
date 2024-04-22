@@ -64,7 +64,7 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
       File file = fs.open(filename);
       StaticJsonDocument<512> doc;
 
-      if (file){
+      if (file){s
         DeserializationError error = deserializeJson(doc, file);
         if (!error){
           strlcpy(config.station_uid, doc["STATION_UID"] | "", sizeof(config.station_uid));
@@ -162,3 +162,22 @@ void storeLog(const char *payload){
   if (file) { file.print(payload); }
   file.close();
 } 
+
+void readFileToCharArray(const char* filename, char* content, size_t maxLength) {
+  // Open the file
+  File file = SD.open(filename);
+  if (!file) {
+    Serial.println("Failed to open file.");
+    return;
+  }
+
+  // Read the file into the character array
+  size_t index = 0;
+  while (file.available() && index < maxLength - 1) {
+    content[index++] = (char)file.read();
+  }
+  content[index] = '\0'; // Null-terminate the character array
+
+  // Close the file
+  file.close();
+}
