@@ -64,7 +64,7 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
       File file = fs.open(filename);
       StaticJsonDocument<512> doc;
 
-      if (file){s
+      if (file){
         DeserializationError error = deserializeJson(doc, file);
         if (!error){
           strlcpy(config.station_uid, doc["STATION_UID"] | "", sizeof(config.station_uid));

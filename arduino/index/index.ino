@@ -1,6 +1,6 @@
 // Autor: Lucas Fonseca e Gabriel Fonseca
 // Titulo: Sit arduino
-// Versão: 1.8 OTA;
+// Versão: 2.0.5 gust refactor_2;
 //.........................................................................................................................
 
 #include "constants.h"
@@ -103,7 +103,7 @@ void setup() {
 
   mqqtClient2.setupMqtt("- MQTT2", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
   mqqtClient2.setCallback(mqttSubCallback);
-  mqqtClient2.setBufferSize(550);
+  mqqtClient2.setBufferSize(700);
   mqqtClient2.subscribe((String("sys/") + String(config.station_name)).c_str());
 
   output =(String("sys-report/")+String(config.station_name));
@@ -203,7 +203,8 @@ void loop() {
   Data.timestamp = timestamp;
   Data.wind_dir = getWindDir();
   Data.rain_acc = rainCounter * VOLUME_PLUVIOMETRO;
-  Data.wind_gust  = 3.052f /3.0f* ANEMOMETER_CIRC *findMax(rps,sizeof(rps)/sizeof(int));
+  //Data.wind_gust  = 3.052f /3.0f* ANEMOMETER_CIRC *findMax(rps,sizeof(rps)/sizeof(int));
+  Data.wind_gust  = 3.052f /3.0f* ANEMOMETER_CIRC *gust(rps,sizeof(rps)/sizeof(int),3);
   Data.wind_speed = 3.052 * (ANEMOMETER_CIRC * anemometerCounter) / (config.interval / 1000.0); // m/s
   
   DHTRead(Data.humidity, Data.temperature);
@@ -291,7 +292,7 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
       // Perform reset action
     } else if (strcmp(command, "configure") == 0) {
       // Execute configure command
-      char buff[550]{0};
+      char buff[700]{0};
       readFileToCharArray("/config.txt",buff,550);
       Serial.println(buff);
       mqqtClient2.publish(output.c_str(),buff);

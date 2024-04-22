@@ -22,7 +22,7 @@ unsigned long smallestDeltatime=4294967295;
 unsigned int gustIndex = 0;  
 unsigned int previousCounter= 0;
 Sensors sensors;
-int rps[20]{0};
+int rps[60]{0};
 
 void resetSensors(){
   rainCounter = 0;
@@ -120,13 +120,13 @@ void WindGustRead(unsigned int now)
   static unsigned int lastAssignement = 0;
 
   int gustInterval = now-lastAssignement;
-    if(gustInterval>=3000)
+    if(gustInterval>=1000)
     {
       lastAssignement= now;
       int revolutions = anemometerCounter- previousCounter;
       previousCounter=anemometerCounter;
       rps[gustIndex++] = revolutions;
-      gustIndex = gustIndex%20;
+      gustIndex = gustIndex%(sizeof(rps)/sizeof(int));
     }
 }
 void windGustReset(){gustIndex=0;  previousCounter = 0;}
@@ -144,3 +144,27 @@ int findMax(int arr[], int size) {
     }
     return max;
 }
+
+float gust(const int* data, int size, int width)
+{
+	const int* begin = data;
+
+	float maxSum = 0.0f;
+
+	do
+	{
+		float sum = 0.0f;
+		for (const int* ptr = begin; ptr < begin + width; ptr++)
+		{
+			sum += *ptr;
+		}
+
+		if (sum > maxSum)
+			maxSum = sum;
+
+		begin++;
+	} while (begin + width <= data + size);
+
+	return maxSum;
+}
+

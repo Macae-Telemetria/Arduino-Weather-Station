@@ -11,7 +11,7 @@ void beginBMP();
 int findMax(int arr[], int size);
 void WindGustRead(unsigned int now);
 void resetSensors();
-
+float gust(const int* data, int size, int width);
 
 union  Sensors{
     struct {
