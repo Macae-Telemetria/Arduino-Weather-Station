@@ -48,17 +48,17 @@ void createDirectory(const char * directory){
   Serial.printf("\n     - Diretorio já existe.");
 }
 void parseMQTTString(const char *mqttString, char *username, char *password, char *broker, int &port) {
-    char *ptr = strstr(mqttString, "mqtt://");
-    if (ptr == NULL) {
-        printf("Invalid MQTT string format!\n");
-        return;
-    }
-    ptr+=7;
-
-    strlcpy(username, strtok(ptr, ":"), sizeof(config.mqtt_username));
-    strlcpy(password, strtok(NULL, "@"), sizeof(config.mqtt_password));
-    strlcpy(broker, strtok(NULL, ":"), sizeof(config.mqtt_server));
-    port =  atoi(strtok(NULL, ""));
+  if (memcmp(mqttString, "mqtt://", 7) != 0) {
+    printf("Invalid MQTT string format!\n");
+    return;
+  } 
+  int size = strlen(mqttString)+1;
+  char *ptr = new char[size-7];
+  strlcpy(ptr,mqttString+7,size-7);
+  strlcpy(username, strtok(ptr, ":"), sizeof(config.mqtt_username));
+  strlcpy(password, strtok(NULL, "@"), sizeof(config.mqtt_password));
+  strlcpy(broker, strtok(NULL, ":"), sizeof(config.mqtt_server));
+  port =  atoi(strtok(NULL, ""));
 
 }
 // Carrega arquivo de configuração inicial
@@ -72,13 +72,9 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
   while (success == false) {
 
     Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
-
     if (SD.begin(chipSelectPin, SPI)){
-     
       File file = fs.open(filename);
-
       StaticJsonDocument<512> doc;
-
       if (file){
         DeserializationError error = deserializeJson(doc, file);
         if (!error){
@@ -88,6 +84,8 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           strlcpy(config.wifi_password, doc["WIFI_PASSWORD"] | "", sizeof(config.wifi_password));
           config.interval = doc["INTERVAL"] | 60000;
           strlcpy(config.mqtt_topic, doc["MQTT_TOPIC"] | "unnamed", sizeof(config.mqtt_topic));
+          parseMQTTString(doc["MQTT_HOST_V1"],config.mqtt_username,config.mqtt_password,config.mqtt_server,config.mqtt_port);
+          parseMQTTString(doc["MQTT_HOST_V2"],config.mqtt_hostV2_username,config.mqtt_hostV2_password,config.mqtt_hostV2_server,config.mqtt_hostV2_port);
 
           file.close();
           success = true;
@@ -159,7 +157,6 @@ void storeMeasurement(String directory, String fileName, const char *payload){
   }
   appendFile(SD, path.c_str(), payload);
 }
-
 
 
 // Adicion uma nova linha de metricas
