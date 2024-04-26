@@ -59,7 +59,7 @@ void parseMQTTString(const char *mqttString, char *username, char *password, cha
   strlcpy(password, strtok(NULL, "@"), sizeof(config.mqtt_password));
   strlcpy(broker, strtok(NULL, ":"), sizeof(config.mqtt_server));
   port =  atoi(strtok(NULL, ""));
-  delete ptr;
+  delete[] ptr;
 
 }
 // Carrega arquivo de configuração inicial
