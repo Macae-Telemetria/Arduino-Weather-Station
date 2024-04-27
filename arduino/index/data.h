@@ -1,7 +1,7 @@
 #pragma once
 // --- Config data  ---
 struct Config {
-    char station_uid[64]{0};
+    char station_uid[32]{0};
     char station_name[64]{0};
     char wifi_ssid[64]{0};
     char wifi_password[64]{0};
@@ -9,13 +9,10 @@ struct Config {
     char mqtt_username[64]{0};
     char mqtt_password[64]{0};
     char mqtt_topic[64]{0};
-    //---------------//
     char mqtt_hostV2_server[64]{0};
     char mqtt_hostV2_username[64]{0};
     char mqtt_hostV2_password[64]{0};
     int mqtt_hostV2_port;
-    //----------------/
-    //char iotGatewayHost[64];
     int mqtt_port;
     int interval;
 };
