@@ -1,0 +1,10 @@
+{
+  "STATION_ID": "999",
+  "STATION_SLUG": "weather-99",
+  "WIFI_SSID": "Gabriel",
+  "WIFI_PASSWORD": "2014072276",
+  "MQTT_HOST":  "mqqt://username:password@host:port",
+  "MQTT_HOST_V2": "mqqt://username:password@host:port",
+  "MQTT_TOPIC": "topico",
+  "INTERVAL": 10000
+}
