@@ -16,7 +16,7 @@
 #include <rtc_wdt.h>
 #include "mqtt.h"
 #include "OTA.h"
-
+int lastUpdate = 0;
 #define WDT_TIMEOUT 150000 // -- WATCH-DOG
 
 extern unsigned long lastPVLImpulseTime; // Pluviometro
@@ -131,6 +131,8 @@ void setup() {
   const char * hcCsv = parseHealthCheckData(healthCheck, 1);
   mqqtClient2.publish((String("sys-report/")+String(config.station_name)).c_str(),hcCsv );
   startTime = millis();
+
+  lastUpdate = readFileToString(SD,"/conf").toInt();
 }
 
 void loop() {
@@ -173,8 +175,12 @@ void loop() {
     healthCheck.timeRemaining = timeRemaining;
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
-
-    if(!healthCheck.isWifiConnected)ESP.restart();
+    int currentMod = timestamp % (60 * 60);
+    if (!healthCheck.isWifiConnected && currentMod != lastUpdate) {
+    ESP.restart();
+    createFile(SD,"/conf",String(currentMod).c_str());
+    lastUpdate = currentMod;
+    }
     Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));
     Serial.printf("\n  - %s",hcCsv);
 

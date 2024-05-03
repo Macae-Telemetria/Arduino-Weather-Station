@@ -166,6 +166,23 @@ void storeMeasurement(String directory, String fileName, const char *payload){
   appendFile(SD, path.c_str(), payload);
 }
 
+String readFileToString(fs::FS &fs, const char *path) {
+    File file = fs.open(path);
+    if (!file) {
+        Serial.printf(" - Falha ao abrir o arquivo %s\n", path);
+        return String();
+    }
+
+    String fileContent = "";
+    while (file.available()) {
+        fileContent += (char)file.read();
+    }
+
+    file.close();
+    return fileContent;
+}
+
+
 // Adiciona uma nova linha de metricas
 void storeLog(const char *payload){
   String path = "/logs/boot.txt";
