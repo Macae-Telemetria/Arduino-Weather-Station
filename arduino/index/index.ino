@@ -174,6 +174,7 @@ void loop() {
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
 
+    if(!healthCheck.isWifiConnected)ESP.restart();
     Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));
     Serial.printf("\n  - %s",hcCsv);
 
