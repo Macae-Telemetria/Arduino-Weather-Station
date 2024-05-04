@@ -21,25 +21,27 @@ void OTA::update(const String& url) {
 
   int contentLength = http.getSize();
 
-  if (contentLength > 0) {
+  if (contentLength <= 0) {
+    return;
+  }
 
-    Serial.printf("Downloading firmware binary (%d bytes)...\n", contentLength);
+  Serial.printf("Downloading firmware binary (%d bytes)...\n", contentLength);
 
-    if (Update.begin(contentLength)) {
+  if (Update.begin(contentLength)) {
     
-      WiFiClient *stream = http.getStreamPtr();
-      if (Update.writeStream(*stream)) {
-        if (Update.end()) {
-          Serial.println("Update successful!");
-          Serial.println("Reiniciando");
-          delay(1500);
-          ESP.restart();
-        } else {
-          Serial.println("Update failed!");
-        }
-      }
-    } 
+    WiFiClient *stream = http.getStreamPtr();
+    if (Update.writeStream(*stream)) {
+      if (Update.end()) {
+        Serial.println("Update successful!");
+        Serial.println("Reiniciando");
+        delay(1500);
+        ESP.restart();
+      } else {
+        Serial.println("Update failed!");
+       }
+    }
   } 
+  
 
   http.end();
 }

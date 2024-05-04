@@ -170,7 +170,7 @@ String readFileToString(fs::FS &fs, const char *path) {
     File file = fs.open(path);
     if (!file) {
         Serial.printf(" - Falha ao abrir o arquivo %s\n", path);
-        return String();
+        return String("0");
     }
 
     String fileContent = "";

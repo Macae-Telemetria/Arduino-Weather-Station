@@ -12,6 +12,7 @@ bool setupMqtt(const char *contextName, const char* mqtt_server, int mqtt_port, 
 bool loopMqtt();
 void setCallback(void (*callback)(char*, unsigned char*, unsigned int));
 void setBufferSize(int size);
+void subscribe(const char* mqtt_topic);
 
 private:
 class WiFiClient* m_WifiClient;
