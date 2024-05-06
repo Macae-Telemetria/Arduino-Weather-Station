@@ -248,62 +248,124 @@ int bluetoothController(const char *uid, const std::string &content) {
 }
 
 
-void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
-  Serial.println("executing OTA");
 
-  char* jsonBuffer = new char[length + 1-9];
-  memcpy(jsonBuffer, (char*)payload+8, length-9);
-  jsonBuffer[length-9] = '\0';
-  Serial.println(jsonBuffer);
-  Serial.println(topic);
-  DynamicJsonDocument doc(length + 1);
-  DeserializationError error = deserializeJson(doc, jsonBuffer);
-  
-  if (error) {
-    Serial.print("deserializeJson() failed: ");
-    Serial.println(error.c_str());
-    delete[] jsonBuffer;
-    return;
-  }
+void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
+    Serial.println("Executing command");
+    char command = ((const char*)docData["cmd"])[0]; // Assuming cmd is a string containing a single character
 
-  if(strcmp(topic,softwareReleaseMqttTopic.c_str())==0) {
-    // Extract the value of the "data" field (assuming it's a string)
-    const char* url = doc["url"];
-    const char* id = doc["id"];
-    if(!id) return;
+    switch (command) {
+        case 'r':{ // Restart
+            ESP.restart();
+            break;}   
 
-    Serial.print("URL: ");
-    Serial.println(url);
-    String urlStr(url);
+        case 'l':{ // List directory
+            const char* dirPath = docData["dir"] | "/";
+            File dir = SD.open(dirPath);
+            if (!dir || !dir.isDirectory()) {
+               mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "Could not open directory");
+                return;
+            }
+            for (const char* dirList; (dirList = listDirectory(dir, 256))[0]; mqqtClient2.publish(sysReportMqqtTopic, dirList));
+            dir.close();
+            break;}
 
-    const size_t capacity = 128;
-    char jsonString[capacity];
-    snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":1}", id);
-    mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-    bool result = OTA::update(urlStr);
-    
-    printf("%d",result);
-    if(healthCheck.isWifiConnected && !mqqtClient2.loopMqtt()) {
-      mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
+        case 'g': {// Get file
+            const char* filename = docData["fn"] | "";
+            File file = SD.open(filename);
+            if (!file) {
+                Serial.println("Error opening file");
+                return;
+            }
+            for (const char* chunk; (chunk = readFileLimited(file, 384))[0]; mqqtClient2.publish(sysReportMqqtTopic, chunk)) ;
+            file.close();
+            break;}
+
+        case 'a':{ // Append file
+            const char* filename = docData["fn"] | "";
+            const char* content = docData["content"] | "";
+            appendFile(SD, filename, content);
+            break;}
+
+        case 'd':{ // Delete file
+            const char* filename = docData["fn"] | "";
+            if (SD.remove(filename)) {
+              mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "File_deleted_successfully");
+                //Serial.println(PrintingCodes::File_deleted_successfully);
+            } else {
+              mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "could not delte file");
+                //Serial.println(PrintingCodes::Error_deleting_file);
+            }
+            break;
+        }
+        default:
+            mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "Unknown command");
+            Serial.println("Unknown command");
+            break;
     }
-
-    if(result == true ){
-      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":2}", id);
-      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-    } else {
-      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":4}", id);
-      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-    }
-
-    Serial.println("Update successful!");
-    Serial.println("Reiniciando");
-    delay(1500);
-    ESP.restart();
-  }
-
-  // Release dynamically allocated memory
-  delete[] jsonBuffer;
 }
+
+
+void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
+    Serial.println("executing OTA");
+
+    char jsonBuffer[length + 1];
+    memcpy(jsonBuffer, (char*)payload, length);
+    jsonBuffer[length] = '\0';
+    Serial.println(jsonBuffer);
+    Serial.println(topic);
+    
+    DynamicJsonDocument doc(length + 1);
+    DeserializationError error = deserializeJson(doc, jsonBuffer);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return;
+    }
+
+    JsonObject docData = doc.as<JsonObject>(); 
+    if (doc.containsKey("data")) {
+        docData = doc["data"].as<JsonObject>(); 
+    }
+
+    if (strcmp(topic, softwareReleaseMqttTopic.c_str()) == 0) {
+      const char* url = docData["url"];
+      const char* id = docData["id"];
+      if(!id) return;
+
+      Serial.print("URL: ");
+      Serial.println(url);
+      String urlStr(url);
+
+      const size_t capacity = 128;
+      char jsonString[capacity];
+      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":1}", id);
+      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
+      bool result = OTA::update(urlStr);
+
+      printf("%d",result);
+      if(healthCheck.isWifiConnected && !mqqtClient2.loopMqtt()) {
+        mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
+      }
+
+      if(result == true ){
+        snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":2}", id);
+        mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
+      } else {
+        snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":4}", id);
+        mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
+      }
+
+      Serial.println("Update successful!");
+      Serial.println("Reiniciando");
+      delay(1500);
+      ESP.restart();
+    } 
+    else if (docData.containsKey("cmd")) {
+      executeCommand(docData, sysReportMqqtTopic.c_str());
+    }
+}
+  
 
 
 void convertTimeToLocaleDate(long timestamp) {

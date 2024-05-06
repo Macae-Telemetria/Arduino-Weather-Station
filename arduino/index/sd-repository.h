@@ -166,20 +166,46 @@ void storeMeasurement(String directory, String fileName, const char *payload){
   appendFile(SD, path.c_str(), payload);
 }
 
-String readFileToString(fs::FS &fs, const char *path) {
-    File file = fs.open(path);
-    if (!file) {
-        Serial.printf(" - Falha ao abrir o arquivo %s\n", path);
-        return String("0");
+
+#define BUFFER_SIZE 512
+char buffer[BUFFER_SIZE];
+
+
+const char* listDirectory(File& dir, size_t limit) {
+  buffer[0] = '\0'; // Clear buffer at the beginning of each function call
+  size_t writtenLength = 0; // Initialize writtenLength to 0
+
+  while (true) {
+    File entry = dir.openNextFile();
+    if (!entry) break;
+
+    size_t entryNameLength = strlen(entry.name());
+    if (writtenLength + entryNameLength + 2 > limit) {
+      dir.seek(dir.position() - entryNameLength); // Move back the file pointer
+      return buffer; // Return the directory list buffer
     }
 
-    String fileContent = "";
-    while (file.available()) {
-        fileContent += (char)file.read();
-    }
+    strcat(buffer, entry.name()); // Append entry name to buffer
+    strcat(buffer, "\n"); // Append newline character
+    entry.close();
 
-    file.close();
-    return fileContent;
+    writtenLength += entryNameLength + 1; // Update writtenLength to include the entry name and newline character
+  }
+  return buffer; // Return the directory list buffer
+}
+
+const char * readFileLimited(File& file, size_t limit) {
+    
+    size_t bytesRead = file.readBytes(buffer, limit);
+    buffer[bytesRead]='\0';
+    char *lastNewline = strrchr(buffer, '\n');
+
+    if (lastNewline != nullptr) {
+        *(lastNewline+1) = '\0';
+        file.seek(file.position() - bytesRead + lastNewline - buffer+1);
+    }
+    Serial.printf(buffer);
+    return buffer;
 }
 
 
