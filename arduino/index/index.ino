@@ -272,10 +272,9 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
         case 'g': {// Get file
             const char* filename = docData["fn"] | "";
             File file = SD.open(filename);
-            if (!file) {
-                Serial.println("Error opening file");
+            if (!file) 
                 return;
-            }
+           
             for (const char* chunk; (chunk = readFileLimited(file, 384))[0]; mqqtClient2.publish(sysReportMqqtTopic, chunk)) ;
             file.close();
             break;}
@@ -308,7 +307,7 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
 void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
     Serial.println("executing OTA");
 
-    char jsonBuffer[length + 1];
+    char* jsonBuffer = new char[length + 1];
     memcpy(jsonBuffer, (char*)payload, length);
     jsonBuffer[length] = '\0';
     Serial.println(jsonBuffer);
@@ -316,7 +315,7 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
     
     DynamicJsonDocument doc(length + 1);
     DeserializationError error = deserializeJson(doc, jsonBuffer);
-
+    delete[] jsonBuffer;
     if (error) {
         Serial.print("deserializeJson() failed: ");
         Serial.println(error.c_str());
@@ -337,7 +336,7 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
       Serial.println(url);
       String urlStr(url);
 
-      const size_t capacity = 128;
+      const size_t capacity = 100;
       char jsonString[capacity];
       snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":1}", id);
       mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
@@ -348,13 +347,8 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
         mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
       }
 
-      if(result == true ){
-        snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":2}", id);
-        mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-      } else {
-        snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":4}", id);
-        mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-      }
+      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":%i}", id,4-2*result);
+      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
 
       Serial.println("Update successful!");
       Serial.println("Reiniciando");

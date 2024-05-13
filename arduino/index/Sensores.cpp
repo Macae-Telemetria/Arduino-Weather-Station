@@ -113,8 +113,6 @@ void BMPRead(float& press)
   }
 }
 
-
-
 void WindGustRead(unsigned int now)
 {
   static unsigned int lastAssignement = 0;

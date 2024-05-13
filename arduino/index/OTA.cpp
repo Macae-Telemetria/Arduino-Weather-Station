@@ -30,16 +30,16 @@ bool OTA::update(const String& url) {
   if (Update.begin(contentLength)) {
     WiFiClient* stream = http.getStreamPtr();
     if (Update.writeStream(*stream)) {
-      printf(".");
+      Serial.printf(".");
       if (Update.end()) {
-        printf("Downloading concluido com sucesso.");
+        Serial.printf("Downloading concluido com sucesso.");
         http.end();
         return true;
       }
     }
   }
 
-  printf("Falha no downloading.");
+  Serial.printf("Falha no downloading.");
   http.end();
   return false;
 }
