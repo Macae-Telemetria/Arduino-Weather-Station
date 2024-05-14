@@ -72,14 +72,13 @@ void parseWIFIString(const char *wifiString, char *ssid, char *password) {
 }
 
 // Carrega arquivo de configuração inicial
-void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::string& configJson) {
-  Serial.printf("\n - Carregando variáveis de ambiente");
+bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::string& configJson) {
 
   SPI.begin(clockPin, misoPin, mosiPin);
 
-  int attemptCount = 0;
+  static int attemptCount = 0;
   bool success = false;
-  while (success == false) {
+  if (success == false) {
 
     Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
     if (SD.begin(chipSelectPin, SPI)){
@@ -98,7 +97,9 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           file.close();
           success = true;
           serializeJson(doc, configJson);
-          continue;
+          Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
+          Serial.printf("\n - %s\n", configJson.c_str());
+          return true;
         }
         Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");
         Serial.println(error.c_str());
@@ -111,12 +112,10 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
     Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
     attemptCount++;
     SD_BLINK(RETRY_INTERVAL);
+    return false;
   }
 
-  Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
-  Serial.printf("\n - %s", configJson.c_str());
-  Serial.println();
-  return;
+
 }
 
 // Cria um novo arquivo
