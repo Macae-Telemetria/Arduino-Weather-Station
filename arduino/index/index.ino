@@ -28,7 +28,7 @@ extern int rps[20];
 extern Sensors sensors;
 long startTime;
 int timeRemaining=0;
-std::string jsonConfig;
+std::string jsonConfig="{}";
 String formatedDateString = "";
 struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
 // -- MQTT
@@ -58,6 +58,7 @@ void watchdogRTC() {
 
 void setup() {
   Serial.begin(115200);
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   delay(3000);
   logIt("\n >> Sistema Integrado de meteorologia << \n");
 
@@ -81,12 +82,18 @@ void setup() {
   createDirectory("/metricas");
   createDirectory("/logs");
 
-  logIt("\n1. Estação iniciada;", true);
-  loadConfiguration(SD, configFileName, config, jsonConfig);
+  bool loadedSD = loadConfiguration(SD, configFileName, config, jsonConfig);
+  const char* bluetoothName = nullptr;
+  if(loadedSD) bluetoothName=config.station_name;
+  else bluetoothName = "est000";
 
   logIt("\n1.1 Iniciando bluetooth;", true);
-  BLE::Init(config.station_name, bluetoothController);
+  BLE::Init(bluetoothName, bluetoothController);
   BLE::updateValue(CONFIGURATION_UUID, jsonConfig);
+
+  if(!loadedSD)
+  while (!loadConfiguration(SD, configFileName, config, jsonConfig));
+
 
   logIt("\n1.2 Estabelecendo conexão com wifi ", true);
   setupWifi("  - Wifi", config.wifi_ssid, config.wifi_password);
@@ -98,7 +105,7 @@ void setup() {
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
   mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
-   softwareReleaseMqttTopic =String("software-release/") + String(config.station_name);
+  softwareReleaseMqttTopic =String("software-release/") + String(config.station_name);
 
   mqqtClient2.setupMqtt("- MQTT2", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
   mqqtClient2.setCallback(mqttSubCallback);
