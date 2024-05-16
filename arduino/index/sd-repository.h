@@ -74,7 +74,6 @@ void parseWIFIString(const char *wifiString, char *ssid, char *password) {
 
 // Carrega arquivo de configuração inicial
 bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::string& configJson) {
-  Serial.printf("\n - Carregando variáveis de ambiente");
 
   SPI.begin(clockPin, misoPin, mosiPin);
 
@@ -100,8 +99,8 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           success = true;
           serializeJson(doc, configJson);
           Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
-          Serial.printf("\n - %s", configJson.c_str());
-          Serial.println();
+          Serial.printf("\n - %s\n", configJson.c_str());
+          return true;
         }
         Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");
         Serial.println(error.c_str());
@@ -115,7 +114,6 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
     attemptCount++;
     SD_BLINK(RETRY_INTERVAL);
   }
-
 
   return false;
 }
@@ -199,13 +197,14 @@ const char * readFileLimited(File& file, size_t limit) {
     
     size_t bytesRead = file.readBytes(buffer, limit);
     buffer[bytesRead]='\0';
+    /*
     char *lastNewline = strrchr(buffer, '\n');
 
     if (lastNewline != nullptr) {
         *(lastNewline+1) = '\0';
         file.seek(file.position() - bytesRead + lastNewline - buffer+1);
     }
-    Serial.printf(buffer);
+    Serial.printf(buffer);*/
     return buffer;
 }
 

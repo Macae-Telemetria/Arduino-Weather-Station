@@ -28,7 +28,7 @@ extern int rps[20];
 extern Sensors sensors;
 long startTime;
 int timeRemaining=0;
-std::string jsonConfig="{}";
+std::string jsonConfig= "{}";
 String formatedDateString = "";
 struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
 // -- MQTT
@@ -82,6 +82,7 @@ void setup() {
   createDirectory("/metricas");
   createDirectory("/logs");
 
+  Serial.printf("\n - Carregando variáveis de ambiente");
   bool loadedSD = loadConfiguration(SD, configFileName, config, jsonConfig);
   const char* bluetoothName = nullptr;
   if(loadedSD) bluetoothName=config.station_name;
