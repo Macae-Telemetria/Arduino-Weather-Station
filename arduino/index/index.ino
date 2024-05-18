@@ -261,7 +261,8 @@ int bluetoothController(const char *uid, const std::string &content) {
 
 void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
     OnDebug(Serial.println("Executing command");)
-    char command = ((const char*)docData["cmd"])[0]; // Assuming cmd is a string containing a single character
+    const char* strCommand = ((const char*)docData["cmd"]);
+    char command = strCommand[0]; // Assuming cmd is a string containing a single character
 
     switch (command) {
         case 'r':{ // Restart
@@ -272,7 +273,7 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
             const char* dirPath = docData["dir"] | "/";
             File dir = SD.open(dirPath);
             if (!dir || !dir.isDirectory()) {
-               mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "Could not open directory");
+               mqqtClient2.publish(sysReportMqqtTopic, "Could not open directory");
                 return;
             }
             for (const char* dirList; (dirList = listDirectory(dir, 256))[0]; mqqtClient2.publish(sysReportMqqtTopic, dirList));
@@ -285,7 +286,7 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
             if (!file) 
                 return;
            
-            for (const char* chunk; (chunk = readFileLimited(file, 384))[0]; mqqtClient2.publish(sysReportMqqtTopic, chunk)) ;
+            for (const char* chunk; (chunk = readFileLimited(file, 384,strCommand[1]))[0]; mqqtClient2.publish(sysReportMqqtTopic, chunk)) ;
             file.close();
             break;}
 
@@ -298,16 +299,14 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
         case 'd':{ // Delete file
             const char* filename = docData["fn"] | "";
             if (SD.remove(filename)) {
-              mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "File_deleted_successfully");
-                //Serial.println(PrintingCodes::File_deleted_successfully);
+              mqqtClient2.publish(sysReportMqqtTopic, "File_deleted_successfully");
             } else {
-              mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "could not delte file");
-                //Serial.println(PrintingCodes::Error_deleting_file);
+              mqqtClient2.publish(sysReportMqqtTopic, "could not delte file");
             }
             break;
         }
         default:
-            mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), "Unknown command");
+            mqqtClient2.publish(sysReportMqqtTopic, "Unknown command");
             Serial.println("Unknown command");
             break;
     }
