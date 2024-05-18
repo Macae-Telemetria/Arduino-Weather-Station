@@ -29,7 +29,7 @@ extern int rps[20];
 extern Sensors sensors;
 long startTime;
 int timeRemaining=0;
-std::string jsonConfig= "{}";
+std::string jsonConfig = "{}";
 String formatedDateString = "";
 struct HealthCheck healthCheck = {FIRMWARE_VERSION, 0, false, false, 0, 0};
 // -- MQTT
@@ -58,6 +58,7 @@ void watchdogRTC() {
 }
 
 void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   Serial.begin(115200);
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   delay(3000);
@@ -84,6 +85,8 @@ void setup() {
   createDirectory("/logs");
 
   OnDebug(Serial.printf("\n - Carregando variáveis de ambiente");)
+  logIt("\n1. Estação iniciada;", true);
+
   bool loadedSD = loadConfiguration(SD, configFileName, config, jsonConfig);
   const char* bluetoothName = nullptr;
   if(loadedSD) bluetoothName=config.station_name;
@@ -94,9 +97,8 @@ void setup() {
   BLE::updateValue(CONFIGURATION_UUID, jsonConfig);
 
   if(!loadedSD)
-  while (!loadConfiguration(SD, configFileName, config, jsonConfig));
-
-
+    while (!loadConfiguration(SD, configFileName, config, jsonConfig));
+    
   logIt("\n1.2 Estabelecendo conexão com wifi ", true);
   setupWifi("  - Wifi", config.wifi_ssid, config.wifi_password);
   int nivelDbm = (WiFi.RSSI()) * -1;
