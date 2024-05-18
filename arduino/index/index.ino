@@ -95,9 +95,8 @@ void setup() {
   BLE::updateValue(CONFIGURATION_UUID, jsonConfig);
 
   if(!loadedSD)
-  while (!loadConfiguration(SD, configFileName, config, jsonConfig));
-
-
+    while (!loadConfiguration(SD, configFileName, config, jsonConfig));
+    
   logIt("\n1.2 Estabelecendo conexão com wifi ", true);
   setupWifi("  - Wifi", config.wifi_ssid, config.wifi_password);
   int nivelDbm = (WiFi.RSSI()) * -1;

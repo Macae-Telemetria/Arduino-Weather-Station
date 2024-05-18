@@ -78,44 +78,39 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
 
   static int attemptCount = 0;
   bool success = false;
-  if (success == false) {
-
-    Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
-    if (SD.begin(chipSelectPin, SPI)){
-      File file = fs.open(filename);
-      StaticJsonDocument<512> doc;
-      if (file){
-        DeserializationError error = deserializeJson(doc, file);
-        if (!error){
-          strlcpy(config.station_uid, doc["UID"] | "0", sizeof(config.station_uid));
-          strlcpy(config.station_name, doc["SLUG"] | "est000", sizeof(config.station_name));
-          strlcpy(config.mqtt_topic, doc["MQTT_TOPIC"] | "unnamed", sizeof(config.mqtt_topic));
-          config.interval = doc["INTERVAL"] | 60000;
-          parseWIFIString(doc["WIFI"],config.wifi_ssid,config.wifi_password);
-          parseMQTTString(doc["MQTT_HOST"],config.mqtt_username,config.mqtt_password,config.mqtt_server,config.mqtt_port);
-          parseMQTTString(doc["MQTT_HOST_V2"],config.mqtt_hostV2_username,config.mqtt_hostV2_password,config.mqtt_hostV2_server,config.mqtt_hostV2_port);
-          file.close();
-          success = true;
-          serializeJson(doc, configJson);
-          Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
-          Serial.printf("\n - %s\n", configJson.c_str());
-          return true;
-        }
-        Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");
-        Serial.println(error.c_str());
+  Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
+  if (SD.begin(chipSelectPin, SPI)){
+    File file = fs.open(filename);
+    StaticJsonDocument<512> doc;
+    if (file){
+      DeserializationError error = deserializeJson(doc, file);
+      if (!error){
+        strlcpy(config.station_uid, doc["UID"] | "0", sizeof(config.station_uid));
+        strlcpy(config.station_name, doc["SLUG"] | "est000", sizeof(config.station_name));
+        strlcpy(config.mqtt_topic, doc["MQTT_TOPIC"] | "unnamed", sizeof(config.mqtt_topic));
+        config.interval = doc["INTERVAL"] | 60000;
+        parseWIFIString(doc["WIFI"],config.wifi_ssid,config.wifi_password);
+        parseMQTTString(doc["MQTT_HOST"],config.mqtt_username,config.mqtt_password,config.mqtt_server,config.mqtt_port);
+        parseMQTTString(doc["MQTT_HOST_V2"],config.mqtt_hostV2_username,config.mqtt_hostV2_password,config.mqtt_hostV2_server,config.mqtt_hostV2_port);
+        file.close();
+        success = true;
+        serializeJson(doc, configJson);
+        Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
+        Serial.printf("\n - %s\n", configJson.c_str());
+        return true;
       }
-      Serial.printf("\n - [ ERROR ] Arquivo de configuração não encontrado\n");
-    } else {
-      Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
+      Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");
+      Serial.println(error.c_str());
     }
-
-    Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
-    attemptCount++;
-    SD_BLINK(RETRY_INTERVAL);
-    return false;
+    Serial.printf("\n - [ ERROR ] Arquivo de configuração não encontrado\n");
+  } else {
+    Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
   }
 
-
+  Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
+  attemptCount++;
+  SD_BLINK(RETRY_INTERVAL);
+  return false;
 }
 
 // Cria um novo arquivo
