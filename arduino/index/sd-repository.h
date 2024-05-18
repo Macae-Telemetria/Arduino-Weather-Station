@@ -1,6 +1,6 @@
 #include "xtensa/hal.h"
 #pragma once
-
+#include "pch.h"
 #include <SD.h>
 #include <sd_defines.h>
 #include <sd_diskio.h>
@@ -27,23 +27,23 @@ void SD_BLINK(int interval)
 void initSdCard(){
   SPI.begin(clockPin, misoPin, mosiPin);
   while(!SD.begin(chipSelectPin, SPI)) {
-    Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);
+    OnDebug(Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);)
     SD_BLINK(2000);}
-  Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");
+  OnDebug(Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");)
 }
 
 // Adicionar novo diretorio
 void createDirectory(const char * directory){
-  Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);
+  OnDebug(Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);)
   if (!SD.exists(directory)) {
     if (SD.mkdir(directory)) {
-      Serial.printf("\n     - Diretorio criado com sucesso!");
+      OnDebug(Serial.printf("\n     - Diretorio criado com sucesso!");)
     } else {
-      Serial.printf("\n     - Falha ao criar diretorio.");
+      OnDebug(Serial.printf("\n     - Falha ao criar diretorio.");)
     }
     return;
   }
-  Serial.printf("\n     - Diretorio já existe.");
+  OnDebug(Serial.printf("\n     - Diretorio já existe.");)
 }
 
 // Parse Mqtt connection string
@@ -81,7 +81,7 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
   bool success = false;
   if (success == false) {
 
-    Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
+    OnDebug(Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);)
     if (SD.begin(chipSelectPin, SPI)){
       File file = fs.open(filename);
       StaticJsonDocument<512> doc;
@@ -98,19 +98,19 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
           file.close();
           success = true;
           serializeJson(doc, configJson);
-          Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
-          Serial.printf("\n - %s\n", configJson.c_str());
+          OnDebug(Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");)
+          OnDebug(Serial.printf("\n - %s\n", configJson.c_str());)
           return true;
         }
-        Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");
+        OnDebug(Serial.printf("\n - [ ERROR ] Formato inválido (JSON)\n");)
         Serial.println(error.c_str());
       }
-      Serial.printf("\n - [ ERROR ] Arquivo de configuração não encontrado\n");
+      OnDebug(Serial.printf("\n - [ ERROR ] Arquivo de configuração não encontrado\n");)
     } else {
-      Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
+      OnDebug(Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");)
     }
 
-    Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
+    OnDebug(Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));)
     attemptCount++;
     SD_BLINK(RETRY_INTERVAL);
   }
@@ -120,34 +120,34 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
 
 // Cria um novo arquivo
 void createFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Salvando json no cartao SD: %s\n.", path); 
+    OnDebug(Serial.printf("Salvando json no cartao SD: %s\n.", path); )
 
     File file = fs.open(path, FILE_WRITE);
     if(!file){
-        Serial.println(" - Falha ao encontrar cartão SD.");
+        OnDebug(Serial.println(" - Falha ao encontrar cartão SD.");)
         return;
     }
     if(file.print(message)){
-        Serial.println(" - sucesso.");
+        OnDebug(Serial.println(" - sucesso.");)
     } else {
-        Serial.println("- Falha ao salvar.");
+        OnDebug(Serial.println("- Falha ao salvar.");)
     }
     file.close();
 }
 
 // Escreve em arquivo
 void appendFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf(" - Salvando dados no cartao SD: %s\n", path); 
+    OnDebug(Serial.printf(" - Salvando dados no cartao SD: %s\n", path); )
 
     File file = fs.open(path, FILE_APPEND);
     if(!file){
-        Serial.println(" - Falha ao encontrar cartão SD");
+        OnDebug(Serial.println(" - Falha ao encontrar cartão SD");)
         return;
     }
     if(file.print(message)){
-        Serial.println(" - Nova linha salva com sucesso.");
+        OnDebug(Serial.println(" - Nova linha salva com sucesso.");)
     } else {
-        Serial.println(" - Falha ao salvar nova linha");
+        OnDebug(Serial.println(" - Falha ao salvar nova linha");)
     }
     file.close();
 }
@@ -157,9 +157,9 @@ void storeMeasurement(String directory, String fileName, const char *payload){
   String path = directory + "/" + fileName + ".txt";
   if (!SD.exists(directory)) {
     if (SD.mkdir(directory)) {
-      Serial.println(" - Diretorio criado com sucesso!");
+      OnDebug(Serial.println(" - Diretorio criado com sucesso!");)
     } else {
-      Serial.println(" - Falha ao criar diretorio de metricas.");
+      OnDebug(Serial.println(" - Falha ao criar diretorio de metricas.");)
     }
   }
   appendFile(SD, path.c_str(), payload);
@@ -204,7 +204,7 @@ const char * readFileLimited(File& file, size_t limit) {
         *(lastNewline+1) = '\0';
         file.seek(file.position() - bytesRead + lastNewline - buffer+1);
     }
-    Serial.printf(buffer);*/
+    OnDebug(Serial.printf(buffer);*/
     return buffer;
 }
 

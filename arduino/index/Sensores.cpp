@@ -4,7 +4,7 @@
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
 #include <cfloat>
-
+#include "pch.h"
 //Temperatura e Humidade
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -35,11 +35,11 @@ void resetSensors(){
 
 void setupSensors(){
   // Inciando DHT
-  Serial.println("Iniciando DHT");
+  OnDebug(Serial.println("Iniciando DHT");)
   dht.begin();
 
   // Iniciando BMP
-  Serial.println('Iniciando BMP ');
+  OnDebug(Serial.println('Iniciando BMP ');)
   beginBMP();
 }
 
@@ -47,7 +47,7 @@ void beginBMP()
 {
   sensors.bits.bmp= bmp.begin();
   if (!sensors.bits.bmp) {
-    Serial.println("Could not find a valid BMP180 sensor, check wiring!");
+    OnDebug(Serial.println("Could not find a valid BMP180 sensor, check wiring!");)
   }
 }
 
@@ -91,9 +91,9 @@ void pluviometerChange() {
 void DHTRead(float& hum, float& temp) {
   hum = dht.readHumidity();        // umidade relativa
   temp = dht.readTemperature();  //  temperatura em graus Celsius
-  if (isnan(hum) || isnan(temp)){
-    Serial.println("Falha ao ler o sensor DHT!");
-  }
+ OnDebug( if (isnan(hum) || isnan(temp)){
+    OnDebug(Serial.println("Falha ao ler o sensor DHT!");)
+  })
 }
 
 //Pressao
@@ -103,7 +103,7 @@ void BMPRead(float& press)
     // float temperature = bmp.readTemperature(); // isnan(temperature)
     float pressure = bmp.readPressure() / 100.0; // Convert Pa to hPa
     if (isnan(pressure)) {
-      Serial.println("Falha ao ler o sensor BMP180!");
+      OnDebug(Serial.println("Falha ao ler o sensor BMP180!");)
       press = -1;
       return;
     }

@@ -27,24 +27,24 @@ void SD_BLINK(int interval)
 void initSdCard(){
   SPI.begin(clockPin, misoPin, mosiPin);
   while(!SD.begin(chipSelectPin, SPI)) {
-    Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);
+    OnDebug(Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);
     SD_BLINK(2000);}
 
-  Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");
+  OnDebug(Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");
 }
 
 // Adicionar novo diretorio
 void createDirectory(const char * directory){
-  Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);
+  OnDebug(Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);
   if (!SD.exists(directory)) {
     if (SD.mkdir(directory)) {
-      Serial.printf("\n     - Diretorio criado com sucesso!");
+      OnDebug(Serial.printf("\n     - Diretorio criado com sucesso!");
     } else {
-      Serial.printf("\n     - Falha ao criar diretorio.");
+      OnDebug(Serial.printf("\n     - Falha ao criar diretorio.");
     }
     return;
   }
-  Serial.printf("\n     - Diretorio já existe.");
+  OnDebug(Serial.printf("\n     - Diretorio já existe.");
 }
 
 bool parseConfigString(const char* configString, Config& config) {
@@ -135,7 +135,7 @@ void decryptAndPrintFile(const char* filename, const char* key, size_t key_len) 
 
 // Carrega arquivo de configuração inicial
 void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::string& configJson) {
-  Serial.printf("\n - Carregando variáveis de ambiente");
+  OnDebug(Serial.printf("\n - Carregando variáveis de ambiente");
 
   SPI.begin(clockPin, misoPin, mosiPin);
 
@@ -143,7 +143,7 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
   bool success = false;
   while (success == false) {
 
-    Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
+    OnDebug(Serial.printf("\n - Iniciando leitura do arquivo de configuração %s (tentativa: %d)", filename, attemptCount + 1);
 
     if (SD.begin(chipSelectPin, SPI)){
       const char* key= "GPICM";
@@ -152,23 +152,23 @@ void loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
       success=true;
       continue;
     } else {
-      Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
+      OnDebug(Serial.printf("\n - [ ERROR ] Cartão SD não encontrado.\n");
     }
 
-    Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
+    OnDebug(Serial.printf("\n - Proxima tentativa de re-leitura em %d segundos ... \n\n\n", (RETRY_INTERVAL / 1000));
     attemptCount++;
     SD_BLINK(RETRY_INTERVAL);
 
   }
 
-  Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
-  Serial.printf("\n - %s", configJson.c_str());
+  OnDebug(Serial.printf("\n - Variáveis de ambiente carregadas com sucesso!");
+  OnDebug(Serial.printf("\n - %s", configJson.c_str());
   Serial.println();
   return;
 }
 
 void createFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Salvando json no cartao SD: %s\n.", path); 
+    OnDebug(Serial.printf("Salvando json no cartao SD: %s\n.", path); 
 
     File file = fs.open(path, FILE_WRITE);
     if(!file){
@@ -184,7 +184,7 @@ void createFile(fs::FS &fs, const char * path, const char * message){
 }
 
 void appendFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf(" - Salvando dados no cartao SD: %s\n", path); 
+    OnDebug(Serial.printf(" - Salvando dados no cartao SD: %s\n", path); )
 
     File file = fs.open(path, FILE_APPEND);
     if(!file){

@@ -28,3 +28,6 @@ inline char* strVals[NUMDIRS] = {"E", "NE", "N", "NW", "W", "SW", "S", "SE"};
 inline char dirOffset = 0;
 
 inline bool falha = false;
+
+
+

@@ -17,6 +17,7 @@
 #include "mqtt.h"
 #include "OTA.h"
 #include <ArduinoJson.h>
+#include "pch.h"
 // -- WATCH-DOG
 #define WDT_TIMEOUT 600000
 
@@ -82,7 +83,7 @@ void setup() {
   createDirectory("/metricas");
   createDirectory("/logs");
 
-  Serial.printf("\n - Carregando variáveis de ambiente");
+  OnDebug(Serial.printf("\n - Carregando variáveis de ambiente");)
   bool loadedSD = loadConfiguration(SD, configFileName, config, jsonConfig);
   const char* bluetoothName = nullptr;
   if(loadedSD) bluetoothName=config.station_name;
@@ -122,7 +123,7 @@ void setup() {
   lastPVLImpulseTime = now;
 
   // 2; Inicio
-  Serial.printf("\n >> PRIMEIRA ITERAÇÃO\n");
+  OnDebug(Serial.printf("\n >> PRIMEIRA ITERAÇÃO\n");)
 
   int timestamp = timeClient.getEpochTime();
   convertTimeToLocaleDate(timestamp);
@@ -156,7 +157,6 @@ void loop() {
     if (Serial.available() > 0) {
       char command = Serial.read();
       if (command == 'r' || command == 'R') {
-        Serial.println("Restarting...");
         delay(100);
         ESP.restart();
       }
@@ -178,8 +178,8 @@ void loop() {
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
   
-    Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));
-    Serial.printf("\n  - %s",hcCsv);
+    OnDebug(Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));)
+    OnDebug(Serial.printf("\n  - %s",hcCsv);)
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
@@ -199,7 +199,7 @@ void loop() {
   startTime = millis();
   // Computando dados
   
-  Serial.printf("\n\n Computando dados ...\n");
+  OnDebug(Serial.printf("\n\n Computando dados ...\n");)
 
   Data.timestamp = timestamp;
   Data.wind_dir = getWindDir();
@@ -212,22 +212,22 @@ void loop() {
 
   // Apresentação
   parseData();
-  Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); 
-  Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
+  OnDebug(Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); )
+  OnDebug(Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);)
 
   // Armazenamento local
-  Serial.println("\n Gravando em disco:");
+  OnDebug(Serial.println("\n Gravando em disco:");)
   storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
 
   // Enviando Dados Remotamente
-  Serial.println("\n Enviando Resultados:  ");
+  OnDebug(Serial.println("\n Enviando Resultados:  ");)
   bool measurementSent1 = mqqtClient1.publish(config.mqtt_topic, metricsjsonOutput);
   bool measurementSent2 = mqqtClient2.publish(config.mqtt_topic, metricsjsonOutput);
   if(!measurementSent1)
     storeMeasurement("/falhas", formatedDateString, metricsCsvOutput);
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
-  Serial.printf("\n >> PROXIMA ITERAÇÃO\n");
+  OnDebug(Serial.printf("\n >> PROXIMA ITERAÇÃO\n");)
 }
 
 // callbacks
@@ -258,7 +258,7 @@ int bluetoothController(const char *uid, const std::string &content) {
 
 
 void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
-    Serial.println("Executing command");
+    OnDebug(Serial.println("Executing command");)
     char command = ((const char*)docData["cmd"])[0]; // Assuming cmd is a string containing a single character
 
     switch (command) {
@@ -313,7 +313,7 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
 
 
 void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
-    Serial.println("executing OTA");
+    OnDebug(Serial.println("executing OTA");)
 
     char* jsonBuffer = new char[length + 1];
     memcpy(jsonBuffer, (char*)payload, length);
@@ -359,7 +359,7 @@ void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
       mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
 
       Serial.println("Update successful!");
-      Serial.println("Reiniciando");
+      OnDebug(Serial.println("Reiniciando");)
       delay(1500);
       ESP.restart();
     } 
