@@ -189,23 +189,6 @@ const char* listDirectory(File& dir, size_t limit) {
   return buffer; // Return the directory list buffer
 }
 
-const char * readFileLimited(File& file, size_t limit,bool allign) {
-    
-    size_t bytesRead = file.readBytes(buffer, limit);
-    buffer[bytesRead]='\0';
-    if(allign){
-    char *lastNewline = strrchr(buffer, '\n');
-
-    if (lastNewline != nullptr) {
-        *(lastNewline+1) = '\0';
-        file.seek(file.position() - bytesRead + lastNewline - buffer+1);
-    }
-    OnDebug(Serial.printf(buffer);)
-    }
-    return buffer;
-}
-
-
 // Adiciona uma nova linha de metricas
 void storeLog(const char *payload){
   String path = "/logs/boot.txt";

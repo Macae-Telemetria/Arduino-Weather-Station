@@ -68,3 +68,15 @@
   void MQTT::setCallback(void (*callback)(char*, unsigned char*, unsigned int)){
     m_Client->setCallback(callback);
   }
+
+  bool MQTT::beginPublish(const char* topic, unsigned int plength, bool retained){
+    return m_Client->beginPublish(topic,plength,retained);
+  }
+
+  unsigned long long MQTT::write(const unsigned char* buffer, unsigned long long size){
+    return m_Client->write(buffer,size);
+  }
+  
+  int MQTT::endPublish(){
+   return m_Client->endPublish();
+  }

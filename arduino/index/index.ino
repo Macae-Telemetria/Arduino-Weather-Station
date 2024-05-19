@@ -285,8 +285,12 @@ void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
             File file = SD.open(filename);
             if (!file) 
                 return;
-           
-            for (const char* chunk; (chunk = readFileLimited(file, 384,strCommand[1]))[0]; mqqtClient2.publish(sysReportMqqtTopic, chunk)) ;
+            mqqtClient2.beginPublish(sysReportMqqtTopic, file.size(), false);
+            while(file.available()){
+              size_t bytesRead = file.readBytes(buffer, 256);
+              mqqtClient2.write((unsigned char*)buffer,bytesRead);
+            }
+            mqqtClient2.endPublish();
             file.close();
             break;}
 
