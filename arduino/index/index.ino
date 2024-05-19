@@ -17,6 +17,7 @@
 #include "mqtt.h"
 #include "OTA.h"
 #include <ArduinoJson.h>
+#include "pch.h"
 // -- WATCH-DOG
 #define WDT_TIMEOUT 600000
 
@@ -59,6 +60,7 @@ void watchdogRTC() {
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   Serial.begin(115200);
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   delay(3000);
   logIt("\n >> Sistema Integrado de meteorologia << \n");
 
@@ -82,8 +84,8 @@ void setup() {
   createDirectory("/metricas");
   createDirectory("/logs");
 
+  OnDebug(Serial.printf("\n - Carregando variáveis de ambiente");)
   logIt("\n1. Estação iniciada;", true);
-  Serial.printf("\n - Carregando variáveis de ambiente");
 
   bool loadedSD = loadConfiguration(SD, configFileName, config, jsonConfig);
   const char* bluetoothName = nullptr;
@@ -107,7 +109,7 @@ void setup() {
 
   logIt("\n1.4 Estabelecendo conexão com MQTT;", true);
   mqqtClient1.setupMqtt("  - MQTT", config.mqtt_server, config.mqtt_port, config.mqtt_username, config.mqtt_password, config.mqtt_topic);
-   softwareReleaseMqttTopic =String("software-release/") + String(config.station_name);
+  softwareReleaseMqttTopic =String("software-release/") + String(config.station_name);
 
   mqqtClient2.setupMqtt("- MQTT2", config.mqtt_hostV2_server, config.mqtt_hostV2_port, config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
   mqqtClient2.setCallback(mqttSubCallback);
@@ -123,7 +125,7 @@ void setup() {
   lastPVLImpulseTime = now;
 
   // 2; Inicio
-  Serial.printf("\n >> PRIMEIRA ITERAÇÃO\n");
+  OnDebug(Serial.printf("\n >> PRIMEIRA ITERAÇÃO\n");)
 
   int timestamp = timeClient.getEpochTime();
   convertTimeToLocaleDate(timestamp);
@@ -157,7 +159,6 @@ void loop() {
     if (Serial.available() > 0) {
       char command = Serial.read();
       if (command == 'r' || command == 'R') {
-        Serial.println("Restarting...");
         delay(100);
         ESP.restart();
       }
@@ -179,8 +180,8 @@ void loop() {
 
     const char * hcCsv = parseHealthCheckData(healthCheck, 1);
   
-    Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));
-    Serial.printf("\n  - %s",hcCsv);
+    OnDebug(Serial.printf("\n\nColetando dados, metricas em %d segundos ...", (timeRemaining / 1000));)
+    OnDebug(Serial.printf("\n  - %s",hcCsv);)
 
     // Garantindo conexão com mqqt broker;
     if (healthCheck.isWifiConnected && !healthCheck.isMqttConnected) {
@@ -200,7 +201,7 @@ void loop() {
   startTime = millis();
   // Computando dados
   
-  Serial.printf("\n\n Computando dados ...\n");
+  OnDebug(Serial.printf("\n\n Computando dados ...\n");)
 
   Data.timestamp = timestamp;
   Data.wind_dir = getWindDir();
@@ -213,22 +214,22 @@ void loop() {
 
   // Apresentação
   parseData();
-  Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); 
-  Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);
+  OnDebug(Serial.printf("\nResultado CSV:\n%s", metricsCsvOutput); )
+  OnDebug(Serial.printf("\nResultado JSON:\n%s\n", metricsjsonOutput);)
 
   // Armazenamento local
-  Serial.println("\n Gravando em disco:");
+  OnDebug(Serial.println("\n Gravando em disco:");)
   storeMeasurement("/metricas", formatedDateString, metricsCsvOutput);
 
   // Enviando Dados Remotamente
-  Serial.println("\n Enviando Resultados:  ");
+  OnDebug(Serial.println("\n Enviando Resultados:  ");)
   bool measurementSent1 = mqqtClient1.publish(config.mqtt_topic, metricsjsonOutput);
   bool measurementSent2 = mqqtClient2.publish(config.mqtt_topic, metricsjsonOutput);
   if(!measurementSent1)
     storeMeasurement("/falhas", formatedDateString, metricsCsvOutput);
   // Update metrics advertsting value
   BLE::updateValue(HEALTH_CHECK_UUID, ("ME: " + String(metricsCsvOutput)).c_str());
-  Serial.printf("\n >> PROXIMA ITERAÇÃO\n");
+  OnDebug(Serial.printf("\n >> PROXIMA ITERAÇÃO\n");)
 }
 
 // callbacks
@@ -257,62 +258,121 @@ int bluetoothController(const char *uid, const std::string &content) {
 }
 
 
-void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
-  Serial.println("executing OTA");
 
-  char* jsonBuffer = new char[length + 1-9];
-  memcpy(jsonBuffer, (char*)payload+8, length-9);
-  jsonBuffer[length-9] = '\0';
-  Serial.println(jsonBuffer);
-  Serial.println(topic);
-  DynamicJsonDocument doc(length + 1);
-  DeserializationError error = deserializeJson(doc, jsonBuffer);
-  
-  if (error) {
-    Serial.print("deserializeJson() failed: ");
-    Serial.println(error.c_str());
-    delete[] jsonBuffer;
-    return;
-  }
+void executeCommand(JsonObject& docData, const char* sysReportMqqtTopic) {
+    OnDebug(Serial.println("Executing command");)
+    const char* strCommand = ((const char*)docData["cmd"]);
+    char command = strCommand[0]; // Assuming cmd is a string containing a single character
 
-  if(strcmp(topic,softwareReleaseMqttTopic.c_str())==0) {
-    // Extract the value of the "data" field (assuming it's a string)
-    const char* url = doc["url"];
-    const char* id = doc["id"];
-    if(!id) return;
+    switch (command) {
+        case 'r':{ // Restart
+            ESP.restart();
+            break;}   
 
-    Serial.print("URL: ");
-    Serial.println(url);
-    String urlStr(url);
+        case 'l':{ // List directory
+            const char* dirPath = docData["dir"] | "/";
+            File dir = SD.open(dirPath);
+            if (!dir || !dir.isDirectory()) {
+               mqqtClient2.publish(sysReportMqqtTopic, "Could not open directory");
+                return;
+            }
+            for (const char* dirList; (dirList = listDirectory(dir, 256))[0]; mqqtClient2.publish(sysReportMqqtTopic, dirList));
+            dir.close();
+            break;}
 
-    const size_t capacity = 128;
-    char jsonString[capacity];
-    snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":1}", id);
-    mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-    bool result = OTA::update(urlStr);
-    
-    printf("%d",result);
-    if(healthCheck.isWifiConnected && !mqqtClient2.loopMqtt()) {
-      mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
+        case 'g': {// Get file
+            const char* filename = docData["fn"] | "";
+            File file = SD.open(filename);
+            if (!file) 
+                return;
+            mqqtClient2.beginPublish(sysReportMqqtTopic, file.size(), false);
+            while(file.available()){
+              size_t bytesRead = file.readBytes(buffer, 256);
+              mqqtClient2.write((unsigned char*)buffer,bytesRead);
+            }
+            mqqtClient2.endPublish();
+            file.close();
+            break;}
+
+        case 'a':{ // Append file
+            const char* filename = docData["fn"] | "";
+            const char* content = docData["content"] | "";
+            appendFile(SD, filename, content);
+            break;}
+
+        case 'd':{ // Delete file
+            const char* filename = docData["fn"] | "";
+            if (SD.remove(filename)) {
+              mqqtClient2.publish(sysReportMqqtTopic, "File_deleted_successfully");
+            } else {
+              mqqtClient2.publish(sysReportMqqtTopic, "could not delte file");
+            }
+            break;
+        }
+        default:
+            mqqtClient2.publish(sysReportMqqtTopic, "Unknown command");
+            Serial.println("Unknown command");
+            break;
     }
-
-    if(result == true ){
-      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":2}", id);
-      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-    } else {
-      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":4}", id);
-      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
-    }
-
-    Serial.println("Update successful!");
-    Serial.println("Reiniciando");
-    delay(1500);
-    ESP.restart();
-  }
-
-  // Release dynamically allocated memory
-  delete[] jsonBuffer;
 }
+
+
+void mqttSubCallback(char* topic, unsigned char* payload, unsigned int length) {
+    OnDebug(Serial.println("executing OTA");)
+
+    char* jsonBuffer = new char[length + 1];
+    memcpy(jsonBuffer, (char*)payload, length);
+    jsonBuffer[length] = '\0';
+    Serial.println(jsonBuffer);
+    Serial.println(topic);
+    
+    DynamicJsonDocument doc(length + 1);
+    DeserializationError error = deserializeJson(doc, jsonBuffer);
+    delete[] jsonBuffer;
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return;
+    }
+
+    JsonObject docData = doc.as<JsonObject>(); 
+    if (doc.containsKey("data")) {
+        docData = doc["data"].as<JsonObject>(); 
+    }
+
+    if (strcmp(topic, softwareReleaseMqttTopic.c_str()) == 0) {
+      const char* url = docData["url"];
+      const char* id = docData["id"];
+      if(!id) return;
+
+      Serial.print("URL: ");
+      Serial.println(url);
+      String urlStr(url);
+
+      const size_t capacity = 100;
+      char jsonString[capacity];
+      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":1}", id);
+      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
+      bool result = OTA::update(urlStr);
+
+      printf("%d",result);
+      if(healthCheck.isWifiConnected && !mqqtClient2.loopMqtt()) {
+        mqqtClient2.connectMqtt("\n  - MQTT2", config.mqtt_hostV2_username, config.mqtt_hostV2_password, softwareReleaseMqttTopic.c_str());
+      }
+
+      snprintf(jsonString, sizeof(jsonString), "{\"id\":\"%s\",\"status\":%i}", id,4-2*result);
+      mqqtClient2.publish((sysReportMqqtTopic+String("/OTA")).c_str(), jsonString);
+
+      Serial.println("Update successful!");
+      OnDebug(Serial.println("Reiniciando");)
+      delay(1500);
+      ESP.restart();
+    } 
+    else if (docData.containsKey("cmd")) {
+      executeCommand(docData, sysReportMqqtTopic.c_str());
+    }
+}
+  
 
 
 void convertTimeToLocaleDate(long timestamp) {

@@ -1,6 +1,7 @@
 #include "mqtt.h"
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include "pch.h"
   MQTT::MQTT()
   {
     m_WifiClient = new WiFiClient();
@@ -24,11 +25,11 @@
 
   bool MQTT::connectMqtt(const char *contextName, const char* mqtt_username, const char* mqtt_password, const char* mqtt_topic) {
   if (!m_Client->connected()) {
-    Serial.printf("%s: Tentando nova conexão...", contextName);
+    OnDebug(Serial.printf("%s: Tentando nova conexão...", contextName);)
     String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
     if (m_Client->connect(clientId.c_str(), mqtt_username, mqtt_password)){
-      Serial.printf("%s: Reconectado", contextName);
+      OnDebug(Serial.printf("%s: Reconectado", contextName);)
       subscribe(mqtt_topic);
       return true;
     }
@@ -36,13 +37,13 @@
     Serial.print(m_Client->state());
     return false;
   }
-  Serial.printf("%s: Conectado [ %s ]", contextName, mqtt_topic);
+  OnDebug(Serial.printf("%s: Conectado [ %s ]", contextName, mqtt_topic);)
   return true;
 }
  
 
   bool MQTT::setupMqtt(const char *contextName, const char* mqtt_server, int mqtt_port, const char* mqtt_username, const char* mqtt_password, const char* mqtt_topic){
-    Serial.printf("\n%s: Estabelecendo conexão inicial\n", contextName);
+    OnDebug(Serial.printf("\n%s: Estabelecendo conexão inicial\n", contextName);)
     Serial.println(mqtt_server);
     Serial.println(mqtt_port);
     Serial.println(mqtt_username);
@@ -66,4 +67,16 @@
 
   void MQTT::setCallback(void (*callback)(char*, unsigned char*, unsigned int)){
     m_Client->setCallback(callback);
+  }
+
+  bool MQTT::beginPublish(const char* topic, unsigned int plength, bool retained){
+    return m_Client->beginPublish(topic,plength,retained);
+  }
+
+  unsigned long long MQTT::write(const unsigned char* buffer, unsigned long long size){
+    return m_Client->write(buffer,size);
+  }
+  
+  int MQTT::endPublish(){
+   return m_Client->endPublish();
   }

@@ -26,5 +26,3 @@
 inline int adc[NUMDIRS] = {800, 600, 515, 420, 350, 295, 1900, 1200};
 inline char* strVals[NUMDIRS] = {"E", "NE", "N", "NW", "W", "SW", "S", "SE"};
 inline char dirOffset = 0;
-
-inline bool falha = false;

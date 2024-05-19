@@ -1,5 +1,6 @@
+#include "xtensa/hal.h"
 #pragma once
-
+#include "pch.h"
 #include <SD.h>
 #include <sd_defines.h>
 #include <sd_diskio.h>
@@ -26,23 +27,23 @@ void SD_BLINK(int interval)
 void initSdCard(){
   SPI.begin(clockPin, misoPin, mosiPin);
   while(!SD.begin(chipSelectPin, SPI)) {
-    Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);
+    OnDebug(Serial.printf("\n  - Cartão não encontrado. tentando novamente em %d segundos ...", 2);)
     SD_BLINK(2000);}
-  Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");
+  OnDebug(Serial.printf("\n  - Leitor de Cartão iniciado com sucesso!.\n");)
 }
 
 // Adicionar novo diretorio
 void createDirectory(const char * directory){
-  Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);
+  OnDebug(Serial.printf("\n  - Tentando Criando novo diretorio: %s.", directory);)
   if (!SD.exists(directory)) {
     if (SD.mkdir(directory)) {
-      Serial.printf("\n     - Diretorio criado com sucesso!");
+      OnDebug(Serial.printf("\n     - Diretorio criado com sucesso!");)
     } else {
-      Serial.printf("\n     - Falha ao criar diretorio.");
+      OnDebug(Serial.printf("\n     - Falha ao criar diretorio.");)
     }
     return;
   }
-  Serial.printf("\n     - Diretorio já existe.");
+  OnDebug(Serial.printf("\n     - Diretorio já existe.");)
 }
 
 // Parse Mqtt connection string
@@ -115,34 +116,34 @@ bool loadConfiguration(fs::FS &fs, const char *filename, Config &config, std::st
 
 // Cria um novo arquivo
 void createFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Salvando json no cartao SD: %s\n.", path); 
+    OnDebug(Serial.printf("Salvando json no cartao SD: %s\n.", path); )
 
     File file = fs.open(path, FILE_WRITE);
     if(!file){
-        Serial.println(" - Falha ao encontrar cartão SD.");
+        OnDebug(Serial.println(" - Falha ao encontrar cartão SD.");)
         return;
     }
     if(file.print(message)){
-        Serial.println(" - sucesso.");
+        OnDebug(Serial.println(" - sucesso.");)
     } else {
-        Serial.println("- Falha ao salvar.");
+        OnDebug(Serial.println("- Falha ao salvar.");)
     }
     file.close();
 }
 
 // Escreve em arquivo
 void appendFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf(" - Salvando dados no cartao SD: %s\n", path); 
+    OnDebug(Serial.printf(" - Salvando dados no cartao SD: %s\n", path); )
 
     File file = fs.open(path, FILE_APPEND);
     if(!file){
-        Serial.println(" - Falha ao encontrar cartão SD");
+        OnDebug(Serial.println(" - Falha ao encontrar cartão SD");)
         return;
     }
     if(file.print(message)){
-        Serial.println(" - Nova linha salva com sucesso.");
+        OnDebug(Serial.println(" - Nova linha salva com sucesso.");)
     } else {
-        Serial.println(" - Falha ao salvar nova linha");
+        OnDebug(Serial.println(" - Falha ao salvar nova linha");)
     }
     file.close();
 }
@@ -152,30 +153,41 @@ void storeMeasurement(String directory, String fileName, const char *payload){
   String path = directory + "/" + fileName + ".txt";
   if (!SD.exists(directory)) {
     if (SD.mkdir(directory)) {
-      Serial.println(" - Diretorio criado com sucesso!");
+      OnDebug(Serial.println(" - Diretorio criado com sucesso!");)
     } else {
-      Serial.println(" - Falha ao criar diretorio de metricas.");
+      OnDebug(Serial.println(" - Falha ao criar diretorio de metricas.");)
     }
   }
   appendFile(SD, path.c_str(), payload);
 }
 
-String readFileToString(fs::FS &fs, const char *path) {
-    File file = fs.open(path);
-    if (!file) {
-        Serial.printf(" - Falha ao abrir o arquivo %s\n", path);
-        return String("0");
+
+#define BUFFER_SIZE 512
+char buffer[BUFFER_SIZE];
+
+
+const char* listDirectory(File& dir, size_t limit) {
+  buffer[0] = '\0'; // Clear buffer at the beginning of each function call
+  size_t writtenLength = 0; // Initialize writtenLength to 0
+
+  while (true) {
+    File entry = dir.openNextFile();
+    if (!entry) break;
+
+    size_t entryNameLength = strlen(entry.name());
+    if (writtenLength + entryNameLength + 2 > limit) {
+      dir.seek(dir.position() - entryNameLength); // Move back the file pointer
+      return buffer; // Return the directory list buffer
     }
 
-    String fileContent = "";
-    while (file.available()) {
-        fileContent += (char)file.read();
-    }
+    strcat(buffer, entry.name()); // Append entry name to buffer
+    strcat(buffer, "\n"); // Append newline character
+    entry.close();
 
-    file.close();
-    return fileContent;
+    writtenLength += entryNameLength + 1; // Update writtenLength to include the entry name and newline character
+  }
+  return buffer; // Return the directory list buffer
 }
-
 
 // Adiciona uma nova linha de metricas
 void storeLog(const char *payload){
